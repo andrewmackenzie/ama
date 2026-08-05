@@ -1,59 +1,89 @@
-# parrot
+# Parrot
 
-A minimal macOS dictation daemon. Push-to-talk, on-device transcription, text inserted at the cursor.
+A native macOS dictation app. Push-to-talk, on-device transcription, text inserted at the cursor.
 
-## Install
+Hold a key, speak, release — the transcript types itself in wherever your cursor is. Everything runs
+locally on the Apple Neural Engine; audio never leaves the machine.
+
+> Forked from [digimata/parrot](https://github.com/digimata/parrot) and reshaped from a menu-bar
+> daemon into a regular Mac app: a real window with settings, model management, history, and
+> permissions onboarding. A Dock app, not a menu-bar app.
+
+**Requires:** macOS 14+ on Apple Silicon (M1 or newer). Transcription is CoreML/ANE-only.
+
+## Build & install
 
 ```sh
-curl -fsSL https://digimata.github.io/parrot/install.sh | sh
-parrot setup                       # grants mic + accessibility, downloads the model
-parrot install --launch-at-login   # optional — runs in the background on login
+make app        # build Parrot.app (build/Parrot.app), ad-hoc signed and usable immediately
+make run        # launch it
+make install    # copy Parrot.app to /Applications
 ```
 
-**Requires:** macOS 14+ on Apple Silicon (M1 or newer). Transcription runs on the Apple Neural Engine via CoreML — so the installer refuses to run on Intel.
-
-The installer drops the binary in `/usr/local/bin/parrot`. Builds are unsigned for now, so the installer strips the quarantine xattr — once you've inspected the script you'll see exactly what it does.
+First launch opens the **Permissions** screen. Grant **Accessibility** (for the global hotkey + typing
+at the cursor) and **Microphone**, and set **System Settings → Keyboard → Press 🌐 key to → Do Nothing**
+so Fn is a clean push-to-talk key. macOS may ask you to quit and reopen Parrot after granting
+Accessibility.
 
 ## How to use
 
-1. **Run it.** Either `parrot install --launch-at-login` (daemonized, runs forever, lives in the menu bar), or `parrot` in any terminal tab.
-2. **Click into the text field you want to dictate into** — Messages, the address bar, a Slack thread, anywhere a cursor blinks.
-3. **Hold the `fn` key, speak, release.** A small pill appears at the bottom of the screen while the mic is hot.
-4. **The transcript types itself in at the cursor** when you release. Usually within 200-300ms.
+1. **Click into the text field you want to dictate into** — Messages, the address bar, a Slack thread,
+   anywhere a cursor blinks.
+2. **Hold the push-to-talk key (default Fn), speak, release.** A small pill appears at the bottom of the
+   screen while the mic is hot.
+3. **The transcript types itself in at the cursor** when you release, usually within a few hundred ms.
 
-That's it. There is no record button, no stop button, no "send" — `fn` is the whole interface.
+Close the window and Parrot keeps running in the Dock so the hotkey still works. Quit with ⌘Q.
 
-> **Note:** on most modern Macs the `fn` key is the bottom-left key. If yours is set to "Change input source" or "Show emoji & symbols," `parrot setup` will tell you how to flip it back to plain `fn`.
+The window has:
 
-## CLI
+- **Dictation** — live status and your most recent transcripts.
+- **History** — every transcript, searchable and copyable (toggle off in Settings).
+- **Models** — pick a Whisper model; downloads on-device with progress.
+- **Settings** — push-to-talk key, recording overlay, launch-at-login, history.
+- **Permissions** — mic / accessibility / Fn-key status with one-tap fixes.
+
+## Distribution (optional)
+
+The app is ad-hoc signed for local use. To ship it to other Macs you need an Apple Developer account:
 
 ```sh
-parrot                                 # run in the foreground (^C to quit)
-parrot setup                           # one-time setup: permissions + model download
-parrot install --launch-at-login       # register a LaunchAgent (background daemon)
-parrot install --uninstall             # remove the LaunchAgent
-parrot doctor                          # check permissions + fn key setting
-parrot models list                     # list available models
-parrot models download <id>            # pre-download a model
-parrot --model whisper-large-v3-turbo  # bigger, multilingual, slower first-run
-parrot --hotkey right-option           # change the push-to-talk key
-parrot --no-overlay                    # disable the bottom-of-screen pill
+make sign DEV_ID="Developer ID Application: Your Name (TEAMID)"
+make notarize NOTARY_PROFILE="<notarytool keychain profile>"
+make dmg        # build/Parrot.dmg
 ```
+
+Rename the bundle id if you're making it your own: `make app APP_ID=com.you.parrot`.
+
+## CLI (advanced)
+
+The same binary still works as a terminal daemon and toolbox — handy for scripting or a headless setup:
+
+```sh
+.build/release/parrot run                      # run the daemon in the foreground (^C to quit)
+.build/release/parrot doctor                    # check permissions + fn key setting
+.build/release/parrot models list               # list available models
+.build/release/parrot models download <id>      # pre-download a model
+.build/release/parrot install --launch-at-login # register a LaunchAgent (headless daemon)
+.build/release/parrot run --model whisper-large-v3-turbo --no-overlay
+```
+
+Running `parrot` with no subcommand launches the GUI; any subcommand routes to the CLI.
 
 ## Stack
 
-- **Swift** — single SPM executable target
+- **Swift** — single SPM executable target, bundled into `Parrot.app` by the `Makefile`
+- **AppKit + SwiftUI** — regular Dock app, `NSApplicationDelegate` lifecycle hosting SwiftUI views
 - **WhisperKit** — Whisper inference via CoreML, ANE-accelerated
 - **AVAudioEngine** — mic capture
 - **CGEventTap** — global hotkey
 - **CGEvent** — text injection at cursor
-- **NSWindow** (borderless, click-through) — recording-indicator pill
+- **NSPanel** (borderless, click-through) — recording-indicator pill
 
-See [docs/architecture.md](docs/architecture.md) for design notes.
+See [docs/architecture.md](docs/architecture.md) for original design notes.
 
 ## Build from source
 
 ```sh
-swift build -c release
-.build/release/parrot --help
+swift build -c release   # compiles the executable
+make app                 # wraps it into Parrot.app
 ```

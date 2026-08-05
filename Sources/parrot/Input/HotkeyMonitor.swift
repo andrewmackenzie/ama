@@ -10,17 +10,27 @@ final class HotkeyMonitor {
     enum Event { case pressed, released }
     enum HotkeyError: Error { case tapCreateFailed }
 
-    /// Mask of the modifier we treat as the hotkey. Fn = `.maskSecondaryFn`.
-    private let mask: CGEventFlags
+    /// The push-to-talk key we watch. Default: Fn.
+    private var hotkey: Hotkey
     private let debug: Bool
     private var onEvent: ((Event) -> Void)?
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var isPressed = false
 
-    init(mask: CGEventFlags = .maskSecondaryFn, debug: Bool = false) {
-        self.mask = mask
+    init(hotkey: Hotkey = .fn, debug: Bool = false) {
+        self.hotkey = hotkey
         self.debug = debug
+    }
+
+    /// Swap the watched key without tearing down the event tap. Any in-flight
+    /// press is treated as released so we don't get stuck recording.
+    func setHotkey(_ hotkey: Hotkey) {
+        self.hotkey = hotkey
+        if isPressed {
+            isPressed = false
+            onEvent?(.released)
+        }
     }
 
     func start(onEvent: @escaping (Event) -> Void) throws {
@@ -87,7 +97,12 @@ final class HotkeyMonitor {
                 ))
         }
         guard type == .flagsChanged else { return }
-        let pressed = event.flags.contains(mask)
+        let pressed: Bool
+        switch hotkey.transition(for: event) {
+        case .pressed: pressed = true
+        case .released: pressed = false
+        case .irrelevant: return
+        }
         guard pressed != isPressed else { return }
         isPressed = pressed
         onEvent?(pressed ? .pressed : .released)

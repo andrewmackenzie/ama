@@ -3,7 +3,6 @@ import ArgumentParser
 import Foundation
 import WhisperKit
 
-@main
 struct Parrot: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "parrot",
@@ -61,109 +60,26 @@ struct Run: ParsableCommand {
             chosenModel = m
         }
 
-        let transcriber = WhisperKitTranscriber(model: chosenModel)
-        let warmupSemaphore = DispatchSemaphore(value: 0)
-        var warmupError: Error?
-        Task.detached {
-            do {
-                try await transcriber.warmUp()
-            } catch {
-                warmupError = error
-            }
-            warmupSemaphore.signal()
-        }
-        warmupSemaphore.wait()
-        if let warmupError {
-            FileHandle.standardError.write(Data("warmup failed: \(warmupError)\n".utf8))
-            throw ExitCode(1)
-        }
-
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
 
-        let monitor = HotkeyMonitor(debug: debugHotkey)
-        let capture = AudioCapture()
-        let dumpWav = self.dumpWav
-        let overlay: RecordingOverlay? = noOverlay ? nil : MainActor.assumeIsolated { RecordingOverlay() }
-        if let overlay {
-            capture.onLevel = { level in overlay.pushLevel(level) }
+        // Headless daemon: same engine the GUI uses, no window, no history.
+        let engine = MainActor.assumeIsolated {
+            DictationEngine(
+                model: chosenModel,
+                hotkey: .fn,
+                showOverlay: !noOverlay,
+                history: nil,
+                dumpWav: dumpWav,
+                debugHotkey: debugHotkey
+            )
         }
-        let menuBar = MainActor.assumeIsolated { MenuBarController(modelID: chosenModel.id) }
-
-        do {
-            try monitor.start { event in
-                switch event {
-                case .pressed:
-                    do {
-                        try capture.start()
-                        FileHandle.standardError.write(Data("● recording\n".utf8))
-                        MainActor.assumeIsolated {
-                            overlay?.show(.recording)
-                            menuBar.setRecording(true)
-                        }
-                    } catch {
-                        FileHandle.standardError.write(Data("capture failed: \(error)\n".utf8))
-                    }
-                case .released:
-                    let samples = capture.stop()
-                    MainActor.assumeIsolated {
-                        overlay?.show(.transcribing)
-                        menuBar.setTranscribing()
-                    }
-                    let seconds = Double(samples.count) / AudioCapture.targetSampleRate
-                    let rms = computeRMS(samples)
-                    FileHandle.standardError.write(Data(
-                        String(format: "○ captured %.2fs · rms %.3f\n", seconds, rms).utf8
-                    ))
-                    if dumpWav, !samples.isEmpty {
-                        let path = "/tmp/parrot-last.wav"
-                        do {
-                            try WAVWriter.write(samples: samples, sampleRate: 16_000, to: path)
-                            FileHandle.standardError.write(Data("  wrote \(path)\n".utf8))
-                        } catch {
-                            FileHandle.standardError.write(Data("  wav write failed: \(error)\n".utf8))
-                        }
-                    }
-                    guard !samples.isEmpty else {
-                        MainActor.assumeIsolated {
-                            overlay?.hide()
-                            menuBar.setRecording(false)
-                        }
-                        return
-                    }
-                    Task {
-                        let started = Date()
-                        do {
-                            let text = try await transcriber.transcribe(samples)
-                            let elapsed = Date().timeIntervalSince(started)
-                            FileHandle.standardError.write(Data(
-                                String(format: "→ %.2fs · %@\n", elapsed, text).utf8
-                            ))
-                            await MainActor.run {
-                                TextInjector.inject(text)
-                                overlay?.hide()
-                                menuBar.setRecording(false)
-                            }
-                        } catch {
-                            FileHandle.standardError.write(Data("transcription failed: \(error)\n".utf8))
-                            await MainActor.run {
-                                overlay?.hide()
-                                menuBar.setRecording(false)
-                            }
-                        }
-                    }
-                }
-            }
-        } catch {
-            FileHandle.standardError.write(Data("failed to register hotkey tap: \(error)\n".utf8))
-            FileHandle.standardError.write(Data("run `parrot setup` to configure permissions.\n".utf8))
-            throw ExitCode(1)
-        }
+        MainActor.assumeIsolated { engine.start() }
 
         let sigint = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
         sigint.setEventHandler {
             FileHandle.standardError.write(Data("\nshutting down\n".utf8))
-            monitor.stop()
+            MainActor.assumeIsolated { engine.stop() }
             NSApp.terminate(nil)
         }
         sigint.resume()

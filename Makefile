@@ -55,6 +55,8 @@ app: build icon
 	@mkdir -p $(CONTENTS)/MacOS $(CONTENTS)/Resources
 	cp $(BIN) $(CONTENTS)/MacOS/parrot
 	cp $(BUILD_DIR)/AppIcon.icns $(CONTENTS)/Resources/AppIcon.icns
+	cp LICENSE $(CONTENTS)/Resources/LICENSE
+	bash scripts/collect-licenses.sh $(CONTENTS)/Resources/THIRD-PARTY-LICENSES.txt
 	sed -e 's/__APP_ID__/$(APP_ID)/g' \
 		-e 's/__SHORT_VERSION__/$(SHORT_VERSION)/g' \
 		-e 's/__BUILD__/$(BUILD_VERSION)/g' \

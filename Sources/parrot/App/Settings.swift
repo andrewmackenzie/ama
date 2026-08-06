@@ -8,7 +8,7 @@ import SwiftUI
 final class Settings: ObservableObject {
     private let defaults: UserDefaults
 
-    nonisolated static let suiteName = "com.digimata.parrot"
+    nonisolated static let suiteName = "com.capstannetworks.parrot"
 
     private enum Key {
         static let modelID = "modelID"

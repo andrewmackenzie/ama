@@ -12,7 +12,7 @@
 #   make dmg
 
 APP_NAME    ?= Parrot
-APP_ID      ?= com.digimata.parrot
+APP_ID      ?= com.capstannetworks.parrot
 VERSION     ?= 0.1.0
 BUILD_DIR   ?= build
 BIN         := .build/release/parrot
@@ -85,7 +85,9 @@ dmg: app
 	@echo "built $(BUILD_DIR)/$(APP_NAME).dmg"
 
 # --- Convenience ------------------------------------------------------------
-install: app
+# Install the *Developer ID*-signed app so TCC (accessibility/mic) grants stick.
+# Falls back to plain `app` (ad-hoc) automatically if no signing cert is present.
+install: sign
 	@rm -rf /Applications/$(APP_NAME).app
 	cp -R $(APP) /Applications/
 	@echo "installed /Applications/$(APP_NAME).app"

@@ -42,17 +42,25 @@ The window has:
 - **Settings** — push-to-talk key, recording overlay, launch-at-login, history.
 - **Permissions** — mic / accessibility / Fn-key status with one-tap fixes.
 
-## Distribution (optional)
+## Distribution
 
-The app is ad-hoc signed for local use. To ship it to other Macs you need an Apple Developer account:
+Signed with a Capstan Networks Developer ID, notarized, and shipped as a `.pkg` with a
+Sparkle appcast — the same pipeline as wadlow and Warren VPN. Build and publish are two
+deliberate steps:
 
 ```sh
-make sign DEV_ID="Developer ID Application: Your Name (TEAMID)"
-make notarize NOTARY_PROFILE="<notarytool keychain profile>"
-make dmg        # build/Parrot.dmg
+make pkg        # build → Developer ID sign → pkgbuild → notarize → staple → appcast
+                # produces build/dist/Parrot.pkg + build/dist/parrot.xml
+make pkg ARGS=--no-notarize   # fast iteration, skip the notary round-trip
+make release    # publish the built pkg + appcast to GitHub Releases (v<version>)
 ```
 
-Rename the bundle id if you're making it your own: `make app APP_ID=com.you.parrot`.
+The website (`capstannetworks-com`) pulls those two assets and serves them at
+`https://www.capstannetworks.com/parrot/`. MDM fleets install/update via Installomator:
+`installomator/parrot.sh` (label) or `scripts/installomator/update-parrot.sh`
+(self-contained `valuesfromarguments` updater). Full details in
+[docs/installomator.md](docs/installomator.md); the cross-project process reference lives at
+`~/.claude/capstan-app-distribution.md`.
 
 ## CLI (advanced)
 

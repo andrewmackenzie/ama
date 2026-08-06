@@ -11,9 +11,9 @@
 	<key>CFBundleIdentifier</key>
 	<string>__APP_ID__</string>
 	<key>CFBundleVersion</key>
-	<string>__VERSION__</string>
+	<string>__BUILD__</string>
 	<key>CFBundleShortVersionString</key>
-	<string>__VERSION__</string>
+	<string>__SHORT_VERSION__</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleIconFile</key>

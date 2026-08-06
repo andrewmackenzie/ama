@@ -6,26 +6,32 @@
 #   make run        # launch it
 #   make install    # copy to /Applications
 #
-# Distribution (needs an Apple Developer account):
-#   make sign DEV_ID="Developer ID Application: Your Name (TEAMID)"
-#   make notarize NOTARY_PROFILE="parrot-notary"
-#   make dmg
+# Distribution (Capstan Networks Developer ID; certs + notary profile already set up):
+#   make pkg        # notarized Parrot.pkg + Sparkle appcast in build/dist/
+#   make release    # publish the built pkg + appcast to GitHub Releases
 
 APP_NAME    ?= Parrot
 APP_ID      ?= com.capstannetworks.parrot
-VERSION     ?= 0.1.0
+
+# Versions derive from the git commit count, like wadlow/sstp, so every build
+# gets a fresh auto-incrementing version and Info.plist never needs hand-editing.
+# Bump MARKETING_BASE only for a deliberate major/minor release.
+MARKETING_BASE ?= 0.1
+COMMIT_COUNT   := $(shell git rev-list --count HEAD 2>/dev/null || echo 0)
+SHORT_VERSION  ?= $(MARKETING_BASE).$(COMMIT_COUNT)
+BUILD_VERSION  ?= $(COMMIT_COUNT)
+
 BUILD_DIR   ?= build
 BIN         := .build/release/parrot
 APP         := $(BUILD_DIR)/$(APP_NAME).app
 CONTENTS    := $(APP)/Contents
 
-# For `make sign` / `make notarize`. Defaults to the Capstan Networks Developer
-# ID; override on the command line to use a different signing identity.
-DEV_ID         ?= Developer ID Application: Capstan Networks LLC (674T5RS44U)
-TEAM_ID        ?= 674T5RS44U
-NOTARY_PROFILE ?= parrot-notary
+# Signing identity for `make sign` (used by `make install`). The .pkg pipeline in
+# build-pkg.sh finds the Developer ID Application + Installer certs itself.
+DEV_ID  ?= Developer ID Application: Capstan Networks LLC (674T5RS44U)
+TEAM_ID ?= 674T5RS44U
 
-.PHONY: all build icon app sign notarize dmg install run clean
+.PHONY: all build icon app sign pkg release install run clean
 
 all: app
 
@@ -49,7 +55,9 @@ app: build icon
 	@mkdir -p $(CONTENTS)/MacOS $(CONTENTS)/Resources
 	cp $(BIN) $(CONTENTS)/MacOS/parrot
 	cp $(BUILD_DIR)/AppIcon.icns $(CONTENTS)/Resources/AppIcon.icns
-	sed -e 's/__APP_ID__/$(APP_ID)/g' -e 's/__VERSION__/$(VERSION)/g' \
+	sed -e 's/__APP_ID__/$(APP_ID)/g' \
+		-e 's/__SHORT_VERSION__/$(SHORT_VERSION)/g' \
+		-e 's/__BUILD__/$(BUILD_VERSION)/g' \
 		packaging/Info.plist > $(CONTENTS)/Info.plist
 	codesign --force --sign - \
 		--entitlements packaging/Parrot.entitlements \
@@ -65,24 +73,16 @@ sign: app
 		--sign "$(DEV_ID)" $(APP)
 	codesign --verify --deep --strict --verbose=2 $(APP)
 
-# --- Notarization -----------------------------------------------------------
-notarize:
-	@test -n "$(NOTARY_PROFILE)" || (echo "set NOTARY_PROFILE=<notarytool keychain profile>" && exit 1)
-	ditto -c -k --keepParent $(APP) $(BUILD_DIR)/$(APP_NAME).zip
-	xcrun notarytool submit $(BUILD_DIR)/$(APP_NAME).zip \
-		--keychain-profile "$(NOTARY_PROFILE)" --wait
-	xcrun stapler staple $(APP)
+# --- Distribution: notarized .pkg + Sparkle appcast -------------------------
+# The full sign → pkgbuild → notarize → staple → appcast pipeline lives in
+# build-pkg.sh (same two-step build/publish split as wadlow/sstp). Artifacts
+# land in build/dist/. `make pkg ARGS=--no-notarize` for fast iteration.
+pkg:
+	./build-pkg.sh $(ARGS)
 
-# --- DMG --------------------------------------------------------------------
-dmg: app
-	@rm -rf $(BUILD_DIR)/dmg $(BUILD_DIR)/$(APP_NAME).dmg
-	@mkdir -p $(BUILD_DIR)/dmg
-	cp -R $(APP) $(BUILD_DIR)/dmg/
-	ln -s /Applications $(BUILD_DIR)/dmg/Applications
-	hdiutil create -volname "$(APP_NAME)" -srcfolder $(BUILD_DIR)/dmg \
-		-ov -format UDZO $(BUILD_DIR)/$(APP_NAME).dmg
-	@rm -rf $(BUILD_DIR)/dmg
-	@echo "built $(BUILD_DIR)/$(APP_NAME).dmg"
+# Publish an already-built pkg + appcast to GitHub Releases.
+release:
+	./release.sh $(ARGS)
 
 # --- Convenience ------------------------------------------------------------
 # Install the *Developer ID*-signed app so TCC (accessibility/mic) grants stick.

@@ -19,9 +19,11 @@ BIN         := .build/release/parrot
 APP         := $(BUILD_DIR)/$(APP_NAME).app
 CONTENTS    := $(APP)/Contents
 
-# For `make sign` / `make notarize` (empty by default; ad-hoc otherwise).
-DEV_ID        ?=
-NOTARY_PROFILE ?=
+# For `make sign` / `make notarize`. Defaults to the Capstan Networks Developer
+# ID; override on the command line to use a different signing identity.
+DEV_ID         ?= Developer ID Application: Capstan Networks LLC (674T5RS44U)
+TEAM_ID        ?= 674T5RS44U
+NOTARY_PROFILE ?= parrot-notary
 
 .PHONY: all build icon app sign notarize dmg install run clean
 

@@ -315,7 +315,7 @@ final class DictationEngine: ObservableObject {
                         self.lastTranscript = finalText
                         self.history?.add(finalText)
                     }
-                    self.overlay?.hide()
+                    self.overlay?.finish()
                     self.status = .idle
                 }
             } catch {

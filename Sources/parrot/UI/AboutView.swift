@@ -19,17 +19,22 @@ struct AboutView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 14) {
-                Image(systemName: "bird.fill")
+                Image(systemName: "waveform")
                     .font(.system(size: 40))
                     .foregroundStyle(Color.accentColor)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Parrot").font(.title.weight(.semibold))
+                    Text("Ama").font(.title.weight(.semibold))
                     Text("Version \(version)").font(.callout).foregroundStyle(.secondary)
                     Text("On-device push-to-talk dictation.").font(.callout).foregroundStyle(.secondary)
                 }
             }
 
-            Text("MIT licensed. Based on the open-source parrot by Andrew Jones. Transcription by WhisperKit on the Apple Neural Engine.")
+            Text("“Ama” is short for amanuensis — one who writes down what another dictates. Hold the key, speak, and Ama transcribes it on-device and types it at your cursor.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text("© 2026 Capstan Networks LLC · MIT licensed. Built on the open-source parrot by Andrew Jones. Transcription by WhisperKit on the Apple Neural Engine.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

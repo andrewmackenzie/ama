@@ -3,9 +3,9 @@ import ArgumentParser
 import Foundation
 import WhisperKit
 
-struct Parrot: ParsableCommand {
+struct Ama: ParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "parrot",
+        commandName: "ama",
         abstract: "Minimal macOS dictation daemon. Hold Fn, speak, release.",
         subcommands: [Run.self, Setup.self, Doctor.self, Models.self, Install.self],
         defaultSubcommand: Run.self
@@ -24,7 +24,7 @@ struct Run: ParsableCommand {
     @Flag(name: .long, help: "Print every keyboard event the tap sees (debug).")
     var debugHotkey: Bool = false
 
-    @Flag(name: .long, help: "Write each capture to /tmp/parrot-last.wav for inspection.")
+    @Flag(name: .long, help: "Write each capture to /tmp/ama-last.wav for inspection.")
     var dumpWav: Bool = false
 
     @Flag(name: .long, help: "Disable the on-screen recording overlay.")
@@ -48,7 +48,7 @@ struct Run: ParsableCommand {
         if let id = model {
             guard let m = ModelRegistry.find(id) else {
                 FileHandle.standardError.write(Data("unknown model: \(id)\n".utf8))
-                FileHandle.standardError.write(Data("run `parrot models list` to see options.\n".utf8))
+                FileHandle.standardError.write(Data("run `ama models list` to see options.\n".utf8))
                 throw ExitCode(1)
             }
             chosenModel = m

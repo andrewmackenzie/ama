@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Publish an already-built Parrot to GitHub Releases.
+# Publish an already-built Ama to GitHub Releases.
 #
 # Build and publish are two separate steps on purpose (same as wadlow/sstp): run
 # ./build-pkg.sh as often as you like for test builds — nothing goes public. When you
@@ -8,10 +8,10 @@
 # v<version> with the notarized pkg and the appcast attached as assets.
 #
 # The website repo (capstannetworks-com) pulls those two assets and serves them at
-# https://www.capstannetworks.com/parrot/.
+# https://www.capstannetworks.com/ama/.
 #
 # Prereqs: gh CLI authenticated (gh auth status), and ./build-pkg.sh already run
-# (so build/dist/ holds the notarized Parrot.pkg + parrot.xml).
+# (so build/dist/ holds the notarized Ama.pkg + ama.xml).
 #
 # Usage:
 #   ./release.sh              # create/update release v<version>
@@ -23,8 +23,8 @@ cd "$(dirname "$0")"
 
 REPO="andrewmackenzie/parrot"
 BUILD_DIR="build/dist"
-PKG="$BUILD_DIR/Parrot.pkg"
-APPCAST="$BUILD_DIR/parrot.xml"
+PKG="$BUILD_DIR/Ama.pkg"
+APPCAST="$BUILD_DIR/ama.xml"
 
 DRY_RUN=false
 if [[ "${1:-}" == "--dry-run" ]]; then
@@ -61,14 +61,14 @@ if ! git merge-base --is-ancestor HEAD "@{u}" 2>/dev/null; then
 fi
 
 TARGET_SHA=$(git rev-parse HEAD)
-TITLE="Parrot ${SHORT_VERSION}"
-NOTES="Parrot ${SHORT_VERSION} (build ${BUILD_NUMBER})
+TITLE="Ama ${SHORT_VERSION}"
+NOTES="Ama ${SHORT_VERSION} (build ${BUILD_NUMBER})
 
-- Installer: Parrot.pkg — Developer ID signed, notarized, stapled (Team 674T5RS44U)
-- Appcast:   parrot.xml — Sparkle feed, also consumed by Installomator and the website sync
+- Installer: Ama.pkg — Developer ID signed, notarized, stapled (Team 674T5RS44U)
+- Appcast:   ama.xml — Sparkle feed, also consumed by Installomator and the website sync
 
 The website (capstannetworks-com) pulls these two assets and serves them at
-https://www.capstannetworks.com/parrot/."
+https://www.capstannetworks.com/ama/."
 
 RELEASE_EXISTS=false
 if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then

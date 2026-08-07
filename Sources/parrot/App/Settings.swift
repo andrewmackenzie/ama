@@ -8,7 +8,7 @@ import SwiftUI
 final class Settings: ObservableObject {
     private let defaults: UserDefaults
 
-    nonisolated static let suiteName = "com.capstannetworks.parrot"
+    nonisolated static let suiteName = "com.capstannetworks.ama"
 
     private enum Key {
         static let modelID = "modelID"
@@ -73,7 +73,7 @@ final class Settings: ObservableObject {
 enum AppPaths {
     static var supportDirectory: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let dir = base.appendingPathComponent("parrot", isDirectory: true)
+        let dir = base.appendingPathComponent("ama", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }

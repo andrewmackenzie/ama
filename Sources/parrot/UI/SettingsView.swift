@@ -29,7 +29,7 @@ struct SettingsView: View {
                 Toggle("Launch at login", isOn: $settings.launchAtLogin)
                     .onChange(of: settings.launchAtLogin) { _, newValue in
                         if !LoginItem.set(newValue) {
-                            loginItemNote = "Couldn't update login item. Run Parrot from /Applications and try again."
+                            loginItemNote = "Couldn't update login item. Run Ama from /Applications and try again."
                         } else {
                             loginItemNote = nil
                         }

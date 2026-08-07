@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleName</key>
-	<string>Parrot</string>
+	<string>Ama</string>
 	<key>CFBundleDisplayName</key>
-	<string>Parrot</string>
+	<string>Ama</string>
 	<key>CFBundleExecutable</key>
-	<string>parrot</string>
+	<string>ama</string>
 	<key>CFBundleIdentifier</key>
 	<string>__APP_ID__</string>
 	<key>CFBundleVersion</key>
@@ -23,9 +23,9 @@
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.productivity</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Parrot records from the microphone while you hold the push-to-talk key, transcribes it on-device, and types the result at your cursor.</string>
+	<string>Ama records from the microphone while you hold the push-to-talk key, transcribes it on-device, and types the result at your cursor.</string>
 	<key>NSHumanReadableCopyright</key>
-	<string>MIT Licensed.</string>
+	<string>© 2026 Capstan Networks LLC. MIT Licensed.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>NSHighResolutionCapable</key>

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Build, sign, notarize, and staple the Parrot installer, then emit the
+# Build, sign, notarize, and staple the Ama installer, then emit the
 # distribution artifacts (stable-named pkg + Sparkle/Installomator appcast).
 # This is the BUILD step only — it never publishes anything. Publishing to
 # GitHub Releases is the separate, deliberate ./release.sh step. Same two-step
@@ -18,30 +18,30 @@
 #   ./build-pkg.sh --no-notarize  # everything except notarize/staple (fast iteration)
 #
 # Produces in build/dist/ (build only, nothing public):
-#   Parrot.pkg   — notarized installer, stable name (website serves it at a fixed URL)
-#   parrot.xml   — appcast; its <enclosure url> = ${DOWNLOAD_BASE_URL}/Parrot.pkg
+#   Ama.pkg   — notarized installer, stable name (website serves it at a fixed URL)
+#   ama.xml   — appcast; its <enclosure url> = ${DOWNLOAD_BASE_URL}/Ama.pkg
 
 set -euo pipefail
 
 cd "$(dirname "$0")"
 
-APP_NAME="Parrot"
+APP_NAME="Ama"
 APP_BUNDLE="${APP_NAME}.app"
-APP_BUNDLE_ID="com.capstannetworks.parrot"
+APP_BUNDLE_ID="com.capstannetworks.ama"
 TEAM_ID="674T5RS44U"
-NOTARY_PROFILE="${PARROT_NOTARY_PROFILE:-warren-notarytool}"
-ENTITLEMENTS="packaging/Parrot.entitlements"
+NOTARY_PROFILE="${AMA_NOTARY_PROFILE:-warren-notarytool}"
+ENTITLEMENTS="packaging/Ama.entitlements"
 # Where the pkg + appcast get hosted. The Installomator label and Sparkle both
-# read the appcast from ${DOWNLOAD_BASE_URL}/parrot.xml, whose enclosure points at
-# ${DOWNLOAD_BASE_URL}/Parrot.pkg. Override via env to point at a different host.
-DOWNLOAD_BASE_URL="${DOWNLOAD_BASE_URL:-https://www.capstannetworks.com/parrot}"
+# read the appcast from ${DOWNLOAD_BASE_URL}/ama.xml, whose enclosure points at
+# ${DOWNLOAD_BASE_URL}/Ama.pkg. Override via env to point at a different host.
+DOWNLOAD_BASE_URL="${DOWNLOAD_BASE_URL:-https://www.capstannetworks.com/ama}"
 
 BUILD_DIR="build/dist"
 EXPORT_PATH="$BUILD_DIR/export"
 
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 
-# The signed staging copy under build/dist/export carries Parrot's bundle id.
+# The signed staging copy under build/dist/export carries Ama's bundle id.
 # Left on disk it registers with Launch Services and competes with the installed
 # /Applications copy. Remove it on exit; the finished .pkg in build/dist is untouched.
 cleanup_staging() {
@@ -99,7 +99,7 @@ codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 
 echo "==> Building signed .pkg"
 # productbuild --component hard-codes BundleIsRelocatable=true, which makes macOS
-# upgrade any stray Parrot.app on disk instead of installing to /Applications.
+# upgrade any stray Ama.app on disk instead of installing to /Applications.
 # pkgbuild + component-plist with BundleIsRelocatable=false pins the location.
 COMPONENT_PLIST="$BUILD_DIR/component.plist"
 cat > "$COMPONENT_PLIST" <<EOF
@@ -139,7 +139,7 @@ emit_dist_artifacts() {
     ./make-appcast.sh \
         "$VERSION" "$BUILD_NUMBER" \
         "${DOWNLOAD_BASE_URL%/}/${APP_NAME}.pkg" \
-        "$BUILD_DIR/parrot.xml"
+        "$BUILD_DIR/ama.xml"
     echo "    Built, NOT published. To publish this version to GitHub: ./release.sh"
 }
 

@@ -1,42 +1,21 @@
 #!/usr/bin/env swift
 import AppKit
 
-// Generates a macOS `.iconset` directory of PNGs for Parrot: a white Lucide
-// bird on a rounded blue gradient tile. The Makefile turns the iconset into a
-// `.icns` with `iconutil`. Uses only AppKit — no third-party rasterizer.
+// Generates a macOS `.iconset` for Ama: an original mark — a cream serif "a"
+// monogram on a deep ink-blue squircle with a gold writing-rule accent. The
+// name nods to "amanuensis" (one who writes from dictation); the ink + gold
+// evoke a scribe's page. Fully original (no third-party glyph), rendered with
+// AppKit only. The Makefile turns the iconset into a `.icns` with `iconutil`.
 //
 // Usage: swift scripts/make-icon.swift <output.iconset dir>
 
-let birdSVG = """
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" \
-viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" \
-stroke-linecap="round" stroke-linejoin="round">\
-<path d="M16 7h.01"/>\
-<path d="M3.4 18H12a8 8 0 0 0 8-8V7a4 4 0 0 0-7.28-2.3L2 20"/>\
-<path d="m20 7 2 .5-2 .5"/>\
-<path d="M10 18v3"/>\
-<path d="M14 17.75V21"/>\
-<path d="M7 18a6 6 0 0 0 3.84-10.61"/>\
-</svg>
-"""
-
-func birdImage() -> NSImage {
-    let data = birdSVG.data(using: .utf8)!
-    let image = NSImage(data: data)!
-    image.isTemplate = true
-    return image
-}
-
-/// Draw the bird tinted `color`, fit into `rect`.
-func drawBird(_ base: NSImage, in rect: NSRect, color: NSColor) {
-    let tinted = NSImage(size: rect.size)
-    tinted.lockFocus()
-    let full = NSRect(origin: .zero, size: rect.size)
-    base.draw(in: full, from: .zero, operation: .sourceOver, fraction: 1)
-    color.set()
-    full.fill(using: .sourceAtop)
-    tinted.unlockFocus()
-    tinted.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
+func serifFont(size: CGFloat) -> NSFont {
+    let base = NSFont.systemFont(ofSize: size, weight: .medium)
+    if let d = base.fontDescriptor.withDesign(.serif),
+       let f = NSFont(descriptor: d, size: size) {
+        return f
+    }
+    return NSFont(name: "Times New Roman", size: size) ?? base
 }
 
 func renderIcon(size: Int) -> Data {
@@ -49,38 +28,56 @@ func renderIcon(size: Int) -> Data {
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
 
-    // Rounded-rect tile with a small inset (macOS icon grid convention).
-    let inset = dim * 0.08
+    // Rounded-square tile (macOS icon grid inset).
+    let inset = dim * 0.085
     let tile = NSRect(x: inset, y: inset, width: dim - inset * 2, height: dim - inset * 2)
     let radius = tile.width * 0.225
-    let path = NSBezierPath(roundedRect: tile, xRadius: radius, yRadius: radius)
+    let tilePath = NSBezierPath(roundedRect: tile, xRadius: radius, yRadius: radius)
 
+    // Deep ink-blue gradient body.
     let gradient = NSGradient(colors: [
-        NSColor(calibratedRed: 0.29, green: 0.56, blue: 1.00, alpha: 1),
-        NSColor(calibratedRed: 0.16, green: 0.35, blue: 0.86, alpha: 1),
+        NSColor(calibratedRed: 0.20, green: 0.25, blue: 0.42, alpha: 1),   // slate ink
+        NSColor(calibratedRed: 0.09, green: 0.11, blue: 0.20, alpha: 1),   // deep ink
     ])!
-    gradient.draw(in: path, angle: -90)
+    gradient.draw(in: tilePath, angle: -90)
 
-    let bird = birdImage()
-    let birdDim = tile.width * 0.60
-    let birdRect = NSRect(
-        x: tile.midX - birdDim / 2,
-        y: tile.midY - birdDim / 2,
-        width: birdDim, height: birdDim
-    )
-    drawBird(bird, in: birdRect, color: .white)
+    // Soft top highlight for depth.
+    tilePath.setClip()
+    let highlight = NSGradient(colors: [
+        NSColor(white: 1, alpha: 0.10),
+        NSColor(white: 1, alpha: 0.0),
+    ])!
+    highlight.draw(in: NSRect(x: tile.minX, y: tile.midY, width: tile.width, height: tile.height / 2), angle: -90)
+
+    // Gold "writing rule" accent bar under the monogram.
+    let barW = tile.width * 0.34
+    let barH = max(1, tile.width * 0.045)
+    let barRect = NSRect(x: tile.midX - barW / 2, y: tile.minY + tile.height * 0.225, width: barW, height: barH)
+    let bar = NSBezierPath(roundedRect: barRect, xRadius: barH / 2, yRadius: barH / 2)
+    NSColor(calibratedRed: 0.83, green: 0.64, blue: 0.29, alpha: 1).setFill()
+    bar.fill()
+
+    // Cream serif "a" monogram, centered above the rule.
+    let cream = NSColor(calibratedRed: 0.95, green: 0.92, blue: 0.84, alpha: 1)
+    let fontSize = tile.height * 0.66
+    let attrs: [NSAttributedString.Key: Any] = [
+        .font: serifFont(size: fontSize),
+        .foregroundColor: cream,
+    ]
+    let glyph = NSAttributedString(string: "a", attributes: attrs)
+    let gsize = glyph.size()
+    let gx = tile.midX - gsize.width / 2
+    let gy = tile.minY + tile.height * 0.30
+    glyph.draw(at: NSPoint(x: gx, y: gy))
 
     NSGraphicsContext.restoreGraphicsState()
     return rep.representation(using: .png, properties: [:])!
 }
 
-// MARK: - Emit iconset
-
 let outPath = CommandLine.arguments.dropFirst().first ?? "build/AppIcon.iconset"
 let outURL = URL(fileURLWithPath: outPath)
 try? FileManager.default.createDirectory(at: outURL, withIntermediateDirectories: true)
 
-// (base point size, scale) -> Apple iconset filename.
 let specs: [(name: String, pixels: Int)] = [
     ("icon_16x16.png", 16),
     ("icon_16x16@2x.png", 32),
@@ -95,8 +92,7 @@ let specs: [(name: String, pixels: Int)] = [
 ]
 
 for spec in specs {
-    let data = renderIcon(size: spec.pixels)
-    try data.write(to: outURL.appendingPathComponent(spec.name))
+    try renderIcon(size: spec.pixels).write(to: outURL.appendingPathComponent(spec.name))
 }
 
 print("wrote \(specs.count) PNGs to \(outPath)")

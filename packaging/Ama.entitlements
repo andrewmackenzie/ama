@@ -6,7 +6,7 @@
 	<key>com.apple.security.device.audio-input</key>
 	<true/>
 	<!--
-	  App Sandbox is intentionally OFF: Parrot needs a global CGEventTap
+	  App Sandbox is intentionally OFF: Ama needs a global CGEventTap
 	  (Accessibility) to read the push-to-talk key and to inject text into other
 	  apps, which the sandbox forbids. Hardened Runtime (enabled at signing) is
 	  what notarization requires, not the sandbox.

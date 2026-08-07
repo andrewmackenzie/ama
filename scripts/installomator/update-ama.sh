@@ -2,25 +2,25 @@
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin
 
 # ---------------------------------------
-# This script detects IF Parrot is installed and, if so, updates it as needed
+# This script detects IF Ama is installed and, if so, updates it as needed
 # via Installomator.
 #
-# Latest version + package URL come from the Parrot Sparkle appcast (also
-# consumed by the `parrot` Installomator label). Parrot is not a built-in
+# Latest version + package URL come from the Ama Sparkle appcast (also
+# consumed by the `ama` Installomator label). Ama is not a built-in
 # Installomator label, so this runs the self-contained `valuesfromarguments`
 # label and passes the values pulled from the appcast.
 # Only depends on curl + xmllint, both of which ship with macOS.
 #
 # Deploy via MDM as a script/policy. It is safe to run repeatedly: it no-ops
-# when Parrot is absent or already current.
+# when Ama is absent or already current.
 # ---------------------------------------
 
 # ---------------------------------------
 # Variables you can change
 # ---------------------------------------
 
-app_path="/Applications/Parrot.app"
-feed_url="https://www.capstannetworks.com/parrot/parrot.xml"
+app_path="/Applications/Ama.app"
+feed_url="https://www.capstannetworks.com/ama/ama.xml"
 version_detection_key="CFBundleShortVersionString"
 expected_team_id="674T5RS44U"
 
@@ -64,24 +64,24 @@ Update_or_Install_Installomator() {
 # Only update an app that is already installed; never first-install here.
 if [ -d "$app_path" ] ; then
     echo "$app_path exists. Checking for updates."
-    parrot_feed=$(curl --silent --location --fail "$feed_url")
-    latest_app_version=$(echo "$parrot_feed" | xmllint --xpath 'string(//item[1]/title)' - 2>/dev/null)
-    download_url=$(echo "$parrot_feed" | xmllint --xpath 'string(//item[1]/enclosure/@url)' - 2>/dev/null)
+    ama_feed=$(curl --silent --location --fail "$feed_url")
+    latest_app_version=$(echo "$ama_feed" | xmllint --xpath 'string(//item[1]/title)' - 2>/dev/null)
+    download_url=$(echo "$ama_feed" | xmllint --xpath 'string(//item[1]/enclosure/@url)' - 2>/dev/null)
     installed_app_version=$(defaults read "$app_path/Contents/Info.plist" "$version_detection_key")
 
     if [ "$latest_app_version" != "$installed_app_version" ] ; then
         Update_or_Install_Installomator
         echo "$app_name $installed_app_version needs update to $latest_app_version"
 
-        # Values passed to the valuesfromarguments label. Parrot's name and process
+        # Values passed to the valuesfromarguments label. Ama's name and process
         # have no spaces, so no quote-escaping gymnastics are needed (unlike "Warren VPN").
         /usr/local/Installomator/Installomator.sh valuesfromarguments \
-            name="Parrot" \
+            name="Ama" \
             type="pkg" \
             downloadURL="$download_url" \
             appNewVersion="$latest_app_version" \
             expectedTeamID="$expected_team_id" \
-            blockingProcesses="Parrot"
+            blockingProcesses="Ama"
     else
         echo "$app_name $installed_app_version is up to date. Exiting."
     fi

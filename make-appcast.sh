@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 #
-# Generate the Parrot appcast: a small Sparkle-format XML that advertises the
+# Generate the Ama appcast: a small Sparkle-format XML that advertises the
 # latest release. Two consumers read it, both with tools already on every Mac:
 #
 #   - Installomator (and the MDM/patch tools built on it) curls it and parses the
-#     version + package URL with the built-in `xmllint`. See installomator/parrot.sh
-#     and scripts/installomator/update-parrot.sh.
-#   - Sparkle, if/when Parrot wires up in-app auto-update, reads the exact same file.
+#     version + package URL with the built-in `xmllint`. See installomator/ama.sh
+#     and scripts/installomator/update-ama.sh.
+#   - Sparkle, if/when Ama wires up in-app auto-update, reads the exact same file.
 #
 # The file answers the three things a version-check needs:
 #   - latest version           -> <item><title> and <sparkle:shortVersionString>
 #   - where to download it      -> <item><enclosure url="...">
-#   - how to read the installed version locally -> <parrot:bundleIdentifier> +
-#     <parrot:installPath> + <parrot:versionKey>
+#   - how to read the installed version locally -> <ama:bundleIdentifier> +
+#     <ama:installPath> + <ama:versionKey>
 #
 # Usage: make-appcast.sh <shortVersion> <build> <packageURL> <outfile>
 
@@ -34,18 +34,18 @@ cat > "$OUTFILE" <<XML
 <?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"
      xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"
-     xmlns:parrot="https://capstannetworks.com/parrot/ns">
+     xmlns:ama="https://capstannetworks.com/ama/ns">
   <channel>
-    <title>Parrot</title>
-    <description>Latest Parrot release. Sparkle appcast, also consumed by Installomator.</description>
+    <title>Ama</title>
+    <description>Latest Ama release. Sparkle appcast, also consumed by Installomator.</description>
     <language>en</language>
 
     <!-- How to read the version that is installed locally. Installomator finds the app
          via appName + versionKey; these fields document it for any other tool. -->
-    <parrot:bundleIdentifier>com.capstannetworks.parrot</parrot:bundleIdentifier>
-    <parrot:installPath>/Applications/Parrot.app</parrot:installPath>
-    <parrot:versionKey>CFBundleShortVersionString</parrot:versionKey>
-    <parrot:expectedTeamID>674T5RS44U</parrot:expectedTeamID>
+    <ama:bundleIdentifier>com.capstannetworks.ama</ama:bundleIdentifier>
+    <ama:installPath>/Applications/Ama.app</ama:installPath>
+    <ama:versionKey>CFBundleShortVersionString</ama:versionKey>
+    <ama:expectedTeamID>674T5RS44U</ama:expectedTeamID>
 
     <item>
       <title>${SHORT_VERSION}</title>

@@ -1,17 +1,20 @@
-# Parrot — build the CLI, assemble a regular Mac .app, and (optionally) sign,
+# Ama — build the CLI, assemble a regular Mac .app, and (optionally) sign,
 # notarize, and package it for distribution.
 #
 # Quick start:
-#   make app        # build + bundle Parrot.app (ad-hoc signed, usable now)
+#   make app        # build + bundle Ama.app (ad-hoc signed, usable now)
 #   make run        # launch it
 #   make install    # copy to /Applications
 #
 # Distribution (Capstan Networks Developer ID; certs + notary profile already set up):
-#   make pkg        # notarized Parrot.pkg + Sparkle appcast in build/dist/
+#   make pkg        # notarized Ama.pkg + Sparkle appcast in build/dist/
 #   make release    # publish the built pkg + appcast to GitHub Releases
 
-APP_NAME    ?= Parrot
-APP_ID      ?= com.capstannetworks.parrot
+APP_NAME    ?= Ama
+APP_ID      ?= com.capstannetworks.ama
+# Bundle executable name. The SPM product is still built as `parrot` (see BIN);
+# it is copied into the bundle as `ama` to match CFBundleExecutable.
+EXEC        ?= ama
 
 # Versions derive from the git commit count, like wadlow/sstp, so every build
 # gets a fresh auto-incrementing version and Info.plist never needs hand-editing.
@@ -48,12 +51,12 @@ $(BUILD_DIR)/AppIcon.icns: scripts/make-icon.swift
 	iconutil --convert icns $(BUILD_DIR)/AppIcon.iconset --output $@
 	@rm -rf $(BUILD_DIR)/AppIcon.iconset
 
-# --- Assemble Parrot.app ----------------------------------------------------
+# --- Assemble Ama.app -------------------------------------------------------
 # Ad-hoc signed so microphone + accessibility permissions attach immediately.
 app: build icon
 	@rm -rf $(APP)
 	@mkdir -p $(CONTENTS)/MacOS $(CONTENTS)/Resources
-	cp $(BIN) $(CONTENTS)/MacOS/parrot
+	cp $(BIN) $(CONTENTS)/MacOS/$(EXEC)
 	cp $(BUILD_DIR)/AppIcon.icns $(CONTENTS)/Resources/AppIcon.icns
 	cp LICENSE $(CONTENTS)/Resources/LICENSE
 	bash scripts/collect-licenses.sh $(CONTENTS)/Resources/THIRD-PARTY-LICENSES.txt
@@ -62,7 +65,7 @@ app: build icon
 		-e 's/__BUILD__/$(BUILD_VERSION)/g' \
 		packaging/Info.plist > $(CONTENTS)/Info.plist
 	codesign --force --sign - \
-		--entitlements packaging/Parrot.entitlements \
+		--entitlements packaging/Ama.entitlements \
 		--identifier $(APP_ID) $(APP)
 	@echo "built $(APP)"
 
@@ -70,7 +73,7 @@ app: build icon
 sign: app
 	@test -n "$(DEV_ID)" || (echo "set DEV_ID=\"Developer ID Application: ... (TEAMID)\"" && exit 1)
 	codesign --force --options runtime --timestamp \
-		--entitlements packaging/Parrot.entitlements \
+		--entitlements packaging/Ama.entitlements \
 		--identifier $(APP_ID) \
 		--sign "$(DEV_ID)" $(APP)
 	codesign --verify --deep --strict --verbose=2 $(APP)

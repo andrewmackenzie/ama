@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# Collect the full license text of every third-party component Parrot ships or
+# Collect the full license text of every third-party component Ama ships or
 # depends on, into a single THIRD-PARTY-LICENSES.txt. Satisfies the attribution
 # terms of the MIT / Apache 2.0 / ISC licenses in the stack. Run by `make app`
-# to bundle the file into Parrot.app/Contents/Resources; also committed at the
+# to bundle the file into Ama.app/Contents/Resources; also committed at the
 # repo root for transparency.
 #
 # Usage: collect-licenses.sh <output-file>
@@ -26,11 +26,11 @@ section() {
 }
 
 cat >"$OUT" <<'HEADER'
-Parrot — Third-Party Licenses
+Ama — Third-Party Licenses
 =============================
 
-Parrot bundles or depends on the open-source components below. Each is used
-under its own license, reproduced in full. Parrot itself is MIT licensed (see
+Ama bundles or depends on the open-source components below. Each is used
+under its own license, reproduced in full. Ama itself is MIT licensed (see
 the LICENSE file).
 HEADER
 
@@ -44,26 +44,6 @@ for dir in "$CHECKOUTS"/*/; do
 done
 
 # --- Components not fetched via SwiftPM --------------------------------------
-
-# Lucide icons (the bird glyph used for the app icon). ISC licensed.
-section "Lucide (app icon glyph) — https://lucide.dev"
-cat >>"$OUT" <<'ISC'
-ISC License
-
-Copyright (c) 2020, Lucide Contributors
-
-Permission to use, copy, modify, and/or distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
-FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
-OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-PERFORMANCE OF THIS SOFTWARE.
-ISC
 
 # OpenAI Whisper models (downloaded on demand at runtime, not bundled). MIT.
 section "OpenAI Whisper models (downloaded at runtime) — https://github.com/openai/whisper"

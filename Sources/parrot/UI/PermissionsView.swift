@@ -16,9 +16,9 @@ struct PermissionsView: View {
                     row(check)
                 }
             } header: {
-                Text("Parrot needs these to work")
+                Text("Ama needs these to work")
             } footer: {
-                Text("Grant Accessibility and Microphone access, and set the 🌐 key to “Do Nothing” so Fn is a clean push-to-talk key. macOS may require you to quit and reopen Parrot after granting Accessibility.")
+                Text("Grant Accessibility and Microphone access, and set the 🌐 key to “Do Nothing” so Fn is a clean push-to-talk key. macOS may require you to quit and reopen Ama after granting Accessibility.")
                     .font(.caption)
             }
 

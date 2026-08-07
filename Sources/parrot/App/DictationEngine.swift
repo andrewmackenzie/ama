@@ -222,9 +222,9 @@ final class DictationEngine: ObservableObject {
         if doubleTapLockEnabled, dwell < shortTapDwell {
             // Possibly the first tap of a double-tap. Hold the clip and wait a
             // moment; if a second tap arrives we discard it and lock instead.
+            // Keep the pill up during the wait so it stays continuous into lock.
             pendingTapSamples = samples
             awaitingSecondTap = true
-            overlay?.hide()
             status = .idle
             let work = DispatchWorkItem { [weak self] in
                 guard let self else { return }

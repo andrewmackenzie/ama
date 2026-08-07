@@ -70,6 +70,7 @@ struct HomeView: View {
     }
 
     private var headline: String {
+        if engine.isLocked { return "Listening (locked)" }
         switch engine.status {
         case .idle: return "Ready to dictate"
         case .recording: return "Listening…"
@@ -80,11 +81,15 @@ struct HomeView: View {
     }
 
     private var subheadline: String {
+        if engine.isLocked {
+            return "Hands-free — press \(settings.hotkey.shortName) once to stop and insert."
+        }
         switch engine.status {
         case .error(let message): return message
         case .loading: return "Preparing \(engine.currentModelID). First run downloads the model."
         default:
-            return "Click into any text field, then hold \(settings.hotkey.shortName) and speak.\nModel: \(engine.currentModelID)"
+            let lockHint = settings.doubleTapLock ? " Double-tap to go hands-free." : ""
+            return "Click into any text field, then hold \(settings.hotkey.shortName) and speak.\(lockHint)\nModel: \(engine.currentModelID)"
         }
     }
 

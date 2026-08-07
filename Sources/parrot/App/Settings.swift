@@ -13,6 +13,7 @@ final class Settings: ObservableObject {
     private enum Key {
         static let modelID = "modelID"
         static let hotkey = "hotkey"
+        static let doubleTapLock = "doubleTapLock"
         static let showOverlay = "showOverlay"
         static let launchAtLogin = "launchAtLogin"
         static let keepHistory = "keepHistory"
@@ -25,6 +26,7 @@ final class Settings: ObservableObject {
         defaults.register(defaults: [
             Key.modelID: ModelRegistry.recommended()?.id ?? "whisper-base.en",
             Key.hotkey: Hotkey.fn.rawValue,
+            Key.doubleTapLock: true,
             Key.showOverlay: true,
             Key.launchAtLogin: false,
             Key.keepHistory: true,
@@ -41,6 +43,11 @@ final class Settings: ObservableObject {
     var hotkey: Hotkey {
         get { Hotkey(rawValue: defaults.string(forKey: Key.hotkey) ?? "") ?? .fn }
         set { objectWillChange.send(); defaults.set(newValue.rawValue, forKey: Key.hotkey) }
+    }
+
+    var doubleTapLock: Bool {
+        get { defaults.bool(forKey: Key.doubleTapLock) }
+        set { objectWillChange.send(); defaults.set(newValue, forKey: Key.doubleTapLock) }
     }
 
     var showOverlay: Bool {

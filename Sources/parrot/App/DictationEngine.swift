@@ -19,6 +19,8 @@ final class DictationEngine: ObservableObject {
     @Published private(set) var lastTranscript: String = ""
     /// True once the accessibility-backed hotkey tap is live.
     @Published private(set) var hotkeyActive = false
+    /// True while in hands-free (double-tap) dictation; press again to stop.
+    @Published private(set) var isLocked = false
 
     private let monitor: HotkeyMonitor
     private let capture = AudioCapture()
@@ -30,11 +32,27 @@ final class DictationEngine: ObservableObject {
     private let dumpWav: Bool
     private var modelReady = false
 
+    // Double-tap-to-lock state.
+    private var doubleTapLockEnabled: Bool
+    /// Max gap between the two taps to count as a double-tap.
+    private let doubleTapWindow: TimeInterval = 0.35
+    /// A press-release shorter than this is treated as a "tap" (a possible first
+    /// tap of a double-tap) rather than a push-to-talk hold.
+    private let shortTapDwell: TimeInterval = 0.30
+    private var pressTime: Date?
+    private var awaitingSecondTap = false
+    private var pendingTapSamples: [Float]?
+    private var deferredTranscribe: DispatchWorkItem?
+    /// Set when a press is consumed as a control gesture (lock/stop) so its
+    /// matching release is ignored.
+    private var ignoreNextRelease = false
+
     init(
         model: TranscriptionModel,
         hotkey: Hotkey,
         showOverlay: Bool,
         history: History? = nil,
+        doubleTapLock: Bool = true,
         dumpWav: Bool = false,
         debugHotkey: Bool = false
     ) {
@@ -43,6 +61,7 @@ final class DictationEngine: ObservableObject {
         self.monitor = HotkeyMonitor(hotkey: hotkey, debug: debugHotkey)
         self.overlayEnabled = showOverlay
         self.history = history
+        self.doubleTapLockEnabled = doubleTapLock
         self.dumpWav = dumpWav
         if showOverlay {
             let overlay = RecordingOverlay()
@@ -68,8 +87,8 @@ final class DictationEngine: ObservableObject {
             try monitor.start { [weak self] event in
                 guard let self else { return }
                 switch event {
-                case .pressed: self.beginRecording()
-                case .released: self.endRecording()
+                case .pressed: self.handlePress()
+                case .released: self.handleRelease()
                 }
             }
             hotkeyActive = true
@@ -115,6 +134,20 @@ final class DictationEngine: ObservableObject {
         self.history = history
     }
 
+    func setDoubleTapLock(_ enabled: Bool) {
+        doubleTapLockEnabled = enabled
+        if !enabled {
+            // Flush any pending first-tap clip so nothing is left dangling.
+            cancelDeferredTranscribe()
+            if awaitingSecondTap {
+                awaitingSecondTap = false
+                let samples = pendingTapSamples ?? []
+                pendingTapSamples = nil
+                transcribeAndInject(samples)
+            }
+        }
+    }
+
     func setOverlayEnabled(_ enabled: Bool) {
         guard enabled != overlayEnabled else { return }
         overlayEnabled = enabled
@@ -138,39 +171,119 @@ final class DictationEngine: ObservableObject {
         warmUpModel()
     }
 
-    // MARK: - Recording
+    // MARK: - Hotkey gestures
+    //
+    // Gestures on the push-to-talk key:
+    //   • Hold → record while held, transcribe on release (push-to-talk).
+    //   • Double-tap → lock into hands-free dictation; press again to stop.
+    // To keep push-to-talk instant, only a *short* tap defers briefly to see if
+    // a second tap follows; a real hold transcribes immediately on release.
 
-    private func beginRecording() {
-        // Ignore hotkey presses until the model is ready.
+    private func handlePress() {
+        // Ignore presses until the model is ready.
         if case .loading = status { return }
+
+        if isLocked {
+            // Press-to-stop while locked.
+            ignoreNextRelease = true
+            finishLocked()
+            return
+        }
+
+        if awaitingSecondTap {
+            // Second tap → enter hands-free locked mode; discard the first clip.
+            awaitingSecondTap = false
+            cancelDeferredTranscribe()
+            pendingTapSamples = nil
+            ignoreNextRelease = true
+            enterLocked()
+            return
+        }
+
+        // Normal press → begin a (tentative) push-to-talk recording.
+        startCapture()
+        pressTime = Date()
+    }
+
+    private func handleRelease() {
+        if ignoreNextRelease {
+            ignoreNextRelease = false
+            return
+        }
+        if isLocked { return }
+        guard status == .recording else {
+            _ = capture.stop()
+            return
+        }
+
+        let dwell = pressTime.map { Date().timeIntervalSince($0) } ?? .greatestFiniteMagnitude
+        let samples = capture.stop()
+
+        if doubleTapLockEnabled, dwell < shortTapDwell {
+            // Possibly the first tap of a double-tap. Hold the clip and wait a
+            // moment; if a second tap arrives we discard it and lock instead.
+            pendingTapSamples = samples
+            awaitingSecondTap = true
+            overlay?.hide()
+            status = .idle
+            let work = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                self.awaitingSecondTap = false
+                let pending = self.pendingTapSamples ?? []
+                self.pendingTapSamples = nil
+                self.transcribeAndInject(pending)
+            }
+            deferredTranscribe = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + doubleTapWindow, execute: work)
+        } else {
+            // Normal push-to-talk.
+            transcribeAndInject(samples)
+        }
+    }
+
+    // MARK: - Recording helpers
+
+    private func startCapture() {
         do {
             try capture.start()
             status = .recording
             overlay?.show(.recording)
         } catch {
             log("capture failed: \(error)")
+            status = .idle
+            overlay?.hide()
         }
     }
 
-    private func endRecording() {
-        guard status == .recording else {
-            // Handle a release that arrives without a matching start.
-            _ = capture.stop()
-            return
+    private func enterLocked() {
+        startCapture()
+        if status == .recording {
+            isLocked = true
         }
+    }
+
+    private func finishLocked() {
+        isLocked = false
         let samples = capture.stop()
-        status = .transcribing
-        overlay?.show(.transcribing)
+        transcribeAndInject(samples)
+    }
 
+    private func cancelDeferredTranscribe() {
+        deferredTranscribe?.cancel()
+        deferredTranscribe = nil
+    }
+
+    private func transcribeAndInject(_ samples: [Float]) {
         if dumpWav, !samples.isEmpty {
-            try? WAVWriter.write(samples: samples, sampleRate: 16_000, to: "/tmp/parrot-last.wav")
+            try? WAVWriter.write(samples: samples, sampleRate: 16_000, to: "/tmp/ama-last.wav")
         }
-
         guard !samples.isEmpty else {
             overlay?.hide()
             status = .idle
             return
         }
+        status = .transcribing
+        overlay?.show(.transcribing)
 
         let transcriber = self.transcriber
         Task {

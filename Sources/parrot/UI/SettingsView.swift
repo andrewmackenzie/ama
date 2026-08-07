@@ -23,6 +23,14 @@ struct SettingsView: View {
                     .onChange(of: settings.showOverlay) { _, newValue in
                         engine.setOverlayEnabled(newValue)
                     }
+
+                Toggle("Double-tap to lock (hands-free)", isOn: $settings.doubleTapLock)
+                    .onChange(of: settings.doubleTapLock) { _, newValue in
+                        engine.setDoubleTapLock(newValue)
+                    }
+                Text("Double-tap the key to keep dictating without holding it; press once to stop. Turn off for instant push-to-talk on very short taps.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("General") {

@@ -84,5 +84,6 @@ struct AppContext {
         "com.sublimetext.4",
         "com.jetbrains.intellij",
         "com.todesktop.230313mzl4w4u92",     // Cursor
+        "com.barebones.bbedit",              // BBEdit
     ]
 }

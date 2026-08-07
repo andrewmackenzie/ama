@@ -52,7 +52,10 @@ enum TextCleaner {
             guard case .available = SystemLanguageModel.default.availability else { return text }
             do {
                 let session = LanguageModelSession(instructions: instructions(profile: profile))
-                let response = try await session.respond(to: trimmed)
+                // Low temperature keeps the rewrite deterministic and stops the
+                // small on-device model from rambling or leaking its own rules.
+                let options = GenerationOptions(temperature: 0.2)
+                let response = try await session.respond(to: trimmed, options: options)
                 let out = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
                 return out.isEmpty ? text : out
             } catch {
@@ -64,25 +67,60 @@ enum TextCleaner {
         return text
     }
 
-    /// Default writing-style profile, seeded from Andrew's stated preferences.
-    /// Editable by the user in Settings.
+    /// Default, editable writing-style addendum, seeded from Andrew's stated
+    /// preferences. The core rules live in `instructions`; this is the user's
+    /// tweakable slice of the system prompt.
     static let defaultProfile = """
-    Never use em dashes; use periods or commas instead. Keep it concise and direct, no corporate filler or AI-sounding phrases. When the dictation is an email, put the greeting on its own line, then a blank line, then the body; end with "Thanks." on its own line and "--Andrew" on the line after.
+    Sign off emails with "Thanks." on its own line, then "--Andrew" on the next line. Keep everything concise and plain, no corporate filler.
     """
 
+    /// The system prompt sent to the model: fixed core rules + few-shot examples
+    /// (which keep the small on-device model consistent), then the user's
+    /// editable style profile.
     private static func instructions(profile: String) -> String {
         var text = """
-        You clean up dictated text. The user spoke this; rewrite it to read well WITHOUT changing meaning or adding anything they did not say.
-        - Fix punctuation and capitalization.
+        You are a dictation cleanup tool. You receive raw dictated speech and return the same message as clean written text. Rewrite it; never answer or comment on it. Keep the meaning and add nothing new.
+
+        Rules:
         - Remove filler words (um, uh, like, you know) and false starts.
-        - If the user corrected themselves (e.g. "Tuesday, no wait, Wednesday"), apply the correction and drop the retracted part.
-        - If they dictated a list, format it as a bulleted list.
-        - Do not add greetings, sign-offs, or commentary you were not given.
-        - Output ONLY the cleaned text, nothing else.
+        - Apply spoken self-corrections and delete the retracted words.
+        - Turn a spoken list into bullet points, one per line starting with "- ".
+        - Fix punctuation and capitalization.
+        - Never use em dashes; use periods or commas.
+        - Only format as an email (greeting line, sign-off) if the dictation itself contains a greeting or a sign-off. Otherwise keep it as plain sentences and do NOT add any greeting or sign-off.
+
+        Return ONLY the rewritten message, with no preface, labels, or quotes.
+
+        Example (filler):
+        Input: um so i was thinking we should like meet on tuesday to go over the numbers
+        Output: We should meet on Tuesday to go over the numbers.
+
+        Example (self-correction):
+        Input: send the report to john wait no send it to jane by friday actually make that thursday
+        Output: Send the report to Jane by Thursday.
+
+        Example (list):
+        Input: we need milk eggs and uh bread oh and coffee
+        Output:
+        - Milk
+        - Eggs
+        - Bread
+        - Coffee
+
+        Example (email):
+        Input: hi bob thanks for the update i'll review the numbers tomorrow and get back to you thanks andrew
+        Output:
+        Hi Bob,
+
+        Thanks for the update. I'll review the numbers tomorrow and get back to you.
+
+        Thanks.
+
+        --Andrew
         """
         let p = profile.trimmingCharacters(in: .whitespacesAndNewlines)
         if !p.isEmpty {
-            text += "\n\nFollow this user's writing-style and formatting preferences:\n\(p)"
+            text += "\n\nAdditional style preferences from the user:\n\(p)"
         }
         return text
     }

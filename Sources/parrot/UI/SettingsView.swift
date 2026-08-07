@@ -68,8 +68,17 @@ struct SettingsView: View {
 
                 if settings.cleanupEnabled, TextCleaner.isSupported {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Writing style")
-                            .font(.caption.weight(.semibold))
+                        HStack {
+                            Text("Writing style")
+                                .font(.caption.weight(.semibold))
+                            Spacer()
+                            Button("Reset to default") {
+                                settings.writingStyle = TextCleaner.defaultProfile
+                                engine.setWritingStyle(TextCleaner.defaultProfile)
+                            }
+                            .font(.caption)
+                            .buttonStyle(.link)
+                        }
                         TextEditor(text: $settings.writingStyle)
                             .font(.system(.callout, design: .default))
                             .frame(minHeight: 90)

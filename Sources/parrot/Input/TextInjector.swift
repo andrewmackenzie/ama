@@ -12,16 +12,35 @@ enum TextInjector {
     static func inject(_ text: String) {
         guard !text.isEmpty else { return }
 
-        let utf16 = Array(text.utf16)
+        // A raw "\n" in the Unicode string is dropped by many apps, so multi-line
+        // output (lists, emails) mashes together. Split on newlines and press the
+        // Return key between lines instead.
+        let lines = text.components(separatedBy: "\n")
+        for (i, line) in lines.enumerated() {
+            if i > 0 { postReturn() }
+            injectLine(line)
+        }
+    }
+
+    private static func injectLine(_ line: String) {
+        guard !line.isEmpty else { return }
+        let utf16 = Array(line.utf16)
         let chunkSize = 20
         var index = 0
-
         while index < utf16.count {
             let end = min(index + chunkSize, utf16.count)
             var chunk = Array(utf16[index..<end])
             postChunk(&chunk)
             index = end
         }
+    }
+
+    private static func postReturn() {
+        // 0x24 = kVK_Return.
+        CGEvent(keyboardEventSource: nil, virtualKey: 0x24, keyDown: true)?
+            .post(tap: .cgSessionEventTap)
+        CGEvent(keyboardEventSource: nil, virtualKey: 0x24, keyDown: false)?
+            .post(tap: .cgSessionEventTap)
     }
 
     private static func postChunk(_ chunk: inout [UniChar]) {

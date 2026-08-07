@@ -42,16 +42,16 @@ enum TextCleaner {
         #endif
     }
 
-    /// Clean `text`, optionally shaped by a writing-style `profile`. Returns the
-    /// original text on any failure.
-    static func clean(_ text: String, profile: String = "") async -> String {
+    /// Clean `text`, optionally shaped by a writing-style `profile` and a
+    /// per-app `context` hint. Returns the original text on any failure.
+    static func clean(_ text: String, profile: String = "", context: String? = nil) async -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return text }
         #if canImport(FoundationModels)
         if #available(macOS 26, *) {
             guard case .available = SystemLanguageModel.default.availability else { return text }
             do {
-                let session = LanguageModelSession(instructions: instructions(profile: profile))
+                let session = LanguageModelSession(instructions: instructions(profile: profile, context: context))
                 // Low temperature keeps the rewrite deterministic and stops the
                 // small on-device model from rambling or leaking its own rules.
                 let options = GenerationOptions(temperature: 0.2)
@@ -77,7 +77,7 @@ enum TextCleaner {
     /// The system prompt sent to the model: fixed core rules + few-shot examples
     /// (which keep the small on-device model consistent), then the user's
     /// editable style profile.
-    private static func instructions(profile: String) -> String {
+    private static func instructions(profile: String, context: String? = nil) -> String {
         var text = """
         You are a dictation cleanup tool. You receive raw dictated speech and return the same message as clean written text. Rewrite it; never answer or comment on it.
 
@@ -119,6 +119,9 @@ enum TextCleaner {
 
         --Andrew
         """
+        if let context, !context.isEmpty {
+            text += "\n\nContext:\n\(context)"
+        }
         let p = profile.trimmingCharacters(in: .whitespacesAndNewlines)
         if !p.isEmpty {
             text += "\n\nAdditional style preferences from the user:\n\(p)"

@@ -297,13 +297,16 @@ final class DictationEngine: ObservableObject {
         overlay?.show(.transcribing)
 
         let transcriber = self.transcriber
-        let doCleanup = cleanupEnabled
         let style = writingStyle
+        // Read the target (frontmost) app now, on the main actor, so cleanup can
+        // adapt to it — and skip cleanup entirely in code/terminal apps.
+        let appContext = AppContext.frontmost()
+        let doCleanup = cleanupEnabled && !appContext.category.skipsCleanup
         Task {
             do {
                 var text = try await transcriber.transcribe(samples)
                 if doCleanup, !text.isEmpty {
-                    text = await TextCleaner.clean(text, profile: style)
+                    text = await TextCleaner.clean(text, profile: style, context: appContext.promptContext)
                 }
                 let finalText = text
                 await MainActor.run {

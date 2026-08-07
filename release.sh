@@ -21,7 +21,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-REPO="andrewmackenzie/parrot"
+REPO="andrewmackenzie/ama"
 BUILD_DIR="build/dist"
 PKG="$BUILD_DIR/Ama.pkg"
 APPCAST="$BUILD_DIR/ama.xml"

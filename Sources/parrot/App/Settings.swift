@@ -18,6 +18,8 @@ final class Settings: ObservableObject {
         static let launchAtLogin = "launchAtLogin"
         static let keepHistory = "keepHistory"
         static let historyLimit = "historyLimit"
+        static let cleanupEnabled = "cleanupEnabled"
+        static let writingStyle = "writingStyle"
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
     }
 
@@ -31,6 +33,8 @@ final class Settings: ObservableObject {
             Key.launchAtLogin: false,
             Key.keepHistory: true,
             Key.historyLimit: 200,
+            Key.cleanupEnabled: false,
+            Key.writingStyle: TextCleaner.defaultProfile,
             Key.hasCompletedOnboarding: false,
         ])
     }
@@ -68,6 +72,16 @@ final class Settings: ObservableObject {
     var historyLimit: Int {
         get { defaults.integer(forKey: Key.historyLimit) }
         set { objectWillChange.send(); defaults.set(newValue, forKey: Key.historyLimit) }
+    }
+
+    var cleanupEnabled: Bool {
+        get { defaults.bool(forKey: Key.cleanupEnabled) }
+        set { objectWillChange.send(); defaults.set(newValue, forKey: Key.cleanupEnabled) }
+    }
+
+    var writingStyle: String {
+        get { defaults.string(forKey: Key.writingStyle) ?? TextCleaner.defaultProfile }
+        set { objectWillChange.send(); defaults.set(newValue, forKey: Key.writingStyle) }
     }
 
     var hasCompletedOnboarding: Bool {

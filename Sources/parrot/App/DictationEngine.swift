@@ -32,6 +32,10 @@ final class DictationEngine: ObservableObject {
     private let dumpWav: Bool
     private var modelReady = false
 
+    // AI text cleanup (Apple Foundation Models).
+    private var cleanupEnabled: Bool
+    private var writingStyle: String
+
     // Double-tap-to-lock state.
     private var doubleTapLockEnabled: Bool
     /// Max gap between the two taps to count as a double-tap.
@@ -53,6 +57,8 @@ final class DictationEngine: ObservableObject {
         showOverlay: Bool,
         history: History? = nil,
         doubleTapLock: Bool = true,
+        cleanup: Bool = false,
+        writingStyle: String = "",
         dumpWav: Bool = false,
         debugHotkey: Bool = false
     ) {
@@ -62,6 +68,8 @@ final class DictationEngine: ObservableObject {
         self.overlayEnabled = showOverlay
         self.history = history
         self.doubleTapLockEnabled = doubleTapLock
+        self.cleanupEnabled = cleanup
+        self.writingStyle = writingStyle
         self.dumpWav = dumpWav
         if showOverlay {
             let overlay = RecordingOverlay()
@@ -133,6 +141,9 @@ final class DictationEngine: ObservableObject {
     func setHistory(_ history: History?) {
         self.history = history
     }
+
+    func setCleanup(_ enabled: Bool) { cleanupEnabled = enabled }
+    func setWritingStyle(_ style: String) { writingStyle = style }
 
     func setDoubleTapLock(_ enabled: Bool) {
         doubleTapLockEnabled = enabled
@@ -286,14 +297,20 @@ final class DictationEngine: ObservableObject {
         overlay?.show(.transcribing)
 
         let transcriber = self.transcriber
+        let doCleanup = cleanupEnabled
+        let style = writingStyle
         Task {
             do {
-                let text = try await transcriber.transcribe(samples)
+                var text = try await transcriber.transcribe(samples)
+                if doCleanup, !text.isEmpty {
+                    text = await TextCleaner.clean(text, profile: style)
+                }
+                let finalText = text
                 await MainActor.run {
-                    if !text.isEmpty {
-                        TextInjector.inject(text)
-                        self.lastTranscript = text
-                        self.history?.add(text)
+                    if !finalText.isEmpty {
+                        TextInjector.inject(finalText)
+                        self.lastTranscript = finalText
+                        self.history?.add(finalText)
                     }
                     self.overlay?.hide()
                     self.status = .idle

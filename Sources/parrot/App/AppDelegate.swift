@@ -36,7 +36,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             hotkey: settings.hotkey,
             showOverlay: settings.showOverlay,
             history: settings.keepHistory ? history : nil,
-            doubleTapLock: settings.doubleTapLock
+            doubleTapLock: settings.doubleTapLock,
+            cleanup: settings.cleanupEnabled,
+            writingStyle: settings.writingStyle
         )
         engine.start()
 

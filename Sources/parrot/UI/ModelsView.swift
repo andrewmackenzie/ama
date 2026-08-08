@@ -53,6 +53,12 @@ struct ModelsView: View {
                 Text("\(model.sizeMB) MB · \(model.languages.joined(separator: ", "))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if !model.blurb.isEmpty {
+                    Text(model.blurb)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             Spacer()

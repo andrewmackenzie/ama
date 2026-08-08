@@ -33,6 +33,67 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Overlay symbols") {
+                Text("Pick an emoji or SF Symbol shown for each stage of the recording overlay. For emoji, type or paste one, or press ⌃⌘Space for the macOS emoji picker.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                GlyphRow(title: "Listening", glyph: $settings.listeningGlyph,
+                         symbolColor: settings.symbolColor.color,
+                         emojiSuggestions: GlyphSuggestions.listeningEmoji,
+                         symbolSuggestions: GlyphSuggestions.listeningSymbols)
+                    .onChange(of: settings.listeningGlyph) { _, _ in pushGlyphs() }
+                GlyphRow(title: "Processing", glyph: $settings.processingGlyph,
+                         symbolColor: settings.symbolColor.color,
+                         emojiSuggestions: GlyphSuggestions.processingEmoji,
+                         symbolSuggestions: GlyphSuggestions.processingSymbols)
+                    .onChange(of: settings.processingGlyph) { _, _ in pushGlyphs() }
+                GlyphRow(title: "Done", glyph: $settings.doneGlyph,
+                         symbolColor: settings.symbolColor.color,
+                         emojiSuggestions: GlyphSuggestions.doneEmoji,
+                         symbolSuggestions: GlyphSuggestions.doneSymbols)
+                    .onChange(of: settings.doneGlyph) { _, _ in pushGlyphs() }
+
+                Picker("Size", selection: $settings.glyphSize) {
+                    ForEach(GlyphSize.allCases) { size in
+                        Text(size.label).tag(size)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 240)
+                .onChange(of: settings.glyphSize) { _, _ in pushStyle() }
+
+                ColorPicker(selection: symbolColorBinding, supportsOpacity: true) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("SF Symbol color")
+                        Text("Emoji keep their own colors.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                HStack {
+                    Button("Preview in overlay") { engine.previewGlyphs() }
+                        .disabled(!settings.showOverlay)
+                    Spacer()
+                    Button("Reset to defaults") {
+                        settings.listeningGlyph = .defaultListening
+                        settings.processingGlyph = .defaultProcessing
+                        settings.doneGlyph = .defaultDone
+                        settings.glyphSize = .medium
+                        settings.symbolColor = .defaultSymbol
+                        pushGlyphs()
+                        pushStyle()
+                    }
+                    .buttonStyle(.link)
+                }
+                if !settings.showOverlay {
+                    Text("The overlay is off — turn on “Show recording overlay” above to see these.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Section("General") {
                 Toggle("Launch at login", isOn: $settings.launchAtLogin)
                     .onChange(of: settings.launchAtLogin) { _, newValue in
@@ -109,4 +170,120 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .navigationTitle("Settings")
     }
+
+    private func pushGlyphs() {
+        engine.setGlyphs(
+            listening: settings.listeningGlyph,
+            processing: settings.processingGlyph,
+            done: settings.doneGlyph
+        )
+    }
+
+    private func pushStyle() {
+        engine.setGlyphStyle(size: settings.glyphSize.points, symbolColor: settings.symbolColor.color)
+    }
+
+    // Bridge the persisted RGBAColor to ColorPicker's Color, pushing live updates.
+    private var symbolColorBinding: Binding<Color> {
+        Binding(
+            get: { settings.symbolColor.color },
+            set: { settings.symbolColor = RGBAColor($0); pushStyle() }
+        )
+    }
+}
+
+/// One editable stage row: preview + emoji/SF-Symbol toggle + entry + suggestions.
+private struct GlyphRow: View {
+    let title: String
+    @Binding var glyph: Glyph
+    let symbolColor: Color
+    let emojiSuggestions: [String]
+    let symbolSuggestions: [String]
+
+    // Indent the entry line so it sits under the title, clear of the preview.
+    private let entryIndent: CGFloat = 34
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                GlyphView(glyph: glyph, size: 22, symbolColor: symbolColor)
+                    .frame(width: entryIndent - 10, height: 24)
+                Text(title)
+                    .fontWeight(.medium)
+                Spacer(minLength: 12)
+                Picker("", selection: kindBinding) {
+                    Text("Emoji").tag(Glyph.Kind.emoji)
+                    Text("SF Symbol").tag(Glyph.Kind.symbol)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+            }
+
+            HStack(spacing: 8) {
+                if glyph.kind == .emoji {
+                    TextField("Emoji", text: valueBinding)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 84)
+
+                    ForEach(emojiSuggestions, id: \.self) { e in
+                        Button(e) { glyph = Glyph(kind: .emoji, value: e) }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 20))
+                    }
+                    Spacer(minLength: 0)
+                } else {
+                    TextField("SF Symbol name", text: valueBinding)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: 220)
+                    Menu {
+                        ForEach(symbolSuggestions, id: \.self) { s in
+                            Button { glyph = Glyph(kind: .symbol, value: s) } label: {
+                                Label(s, systemImage: s)
+                            }
+                        }
+                    } label: {
+                        Label("Suggestions", systemImage: "sparkles")
+                    }
+                    .fixedSize()
+                    Spacer(minLength: 0)
+                }
+            }
+            .padding(.leading, entryIndent)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var kindBinding: Binding<Glyph.Kind> {
+        Binding(
+            get: { glyph.kind },
+            set: { newKind in
+                guard newKind != glyph.kind else { return }
+                // Seed a valid value for the new kind rather than reinterpreting
+                // an emoji as a symbol name (or vice versa).
+                let seed = newKind == .emoji
+                    ? (emojiSuggestions.first ?? "👂")
+                    : (symbolSuggestions.first ?? "ear.fill")
+                glyph = Glyph(kind: newKind, value: seed)
+            }
+        )
+    }
+
+    private var valueBinding: Binding<String> {
+        Binding(
+            get: { glyph.value },
+            set: { glyph = Glyph(kind: glyph.kind, value: $0) }
+        )
+    }
+}
+
+/// Curated starting points for each stage.
+enum GlyphSuggestions {
+    static let listeningEmoji = ["👂", "🎙️", "👀", "🦻", "🗣️"]
+    static let processingEmoji = ["🤔", "⏳", "🧠", "💭", "⚙️"]
+    static let doneEmoji = ["👍", "✅", "✨", "🎉", "👌"]
+
+    static let listeningSymbols = ["ear.fill", "waveform", "mic.fill", "dot.radiowaves.left.and.right", "waveform.badge.mic"]
+    static let processingSymbols = ["brain", "hourglass", "ellipsis", "sparkles", "gearshape.fill", "wand.and.stars"]
+    static let doneSymbols = ["checkmark.circle.fill", "hand.thumbsup.fill", "checkmark.seal.fill", "sparkles"]
 }

@@ -44,17 +44,21 @@ struct AboutView: View {
             Text("Acknowledgements & third-party licenses")
                 .font(.headline)
 
-            ScrollView {
+            ScrollView([.vertical, .horizontal]) {
+                // The file is hard-wrapped at ~80 columns; render at a fixed
+                // monospaced size that fits those lines so they don't re-wrap
+                // into ragged hanging lines. `fixedSize` keeps the original line
+                // breaks, with horizontal scroll as a fallback for stray long lines.
                 Text(thirdParty)
-                    .font(.system(.caption, design: .monospaced))
+                    .font(.system(size: 10, design: .monospaced))
                     .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize()
                     .padding(12)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .navigationTitle("About")
     }
 }

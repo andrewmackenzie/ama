@@ -7,7 +7,6 @@ enum SidebarSection: String, CaseIterable, Identifiable {
     case models = "Models"
     case settings = "Settings"
     case permissions = "Permissions"
-    case about = "About"
 
     var id: String { rawValue }
 
@@ -18,7 +17,6 @@ enum SidebarSection: String, CaseIterable, Identifiable {
         case .models: return "cube.box"
         case .settings: return "gearshape"
         case .permissions: return "lock.shield"
-        case .about: return "info.circle"
         }
     }
 }
@@ -50,7 +48,6 @@ struct RootView: View {
         case .models: ModelsView()
         case .settings: SettingsView()
         case .permissions: PermissionsView()
-        case .about: AboutView()
         }
     }
 

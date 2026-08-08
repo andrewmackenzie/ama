@@ -14,6 +14,8 @@ struct TranscriptionModel: Codable {
     let sizeMB: Int
     let languages: [String]
     let recommended: Bool
+    /// One-line description of the speed/accuracy/language trade-off.
+    var blurb: String = ""
 }
 
 struct ModelsManifest: Codable {

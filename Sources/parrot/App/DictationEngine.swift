@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import SwiftUI
 
 /// The dictation pipeline, extracted from the old inline `Run.run()` wiring so
 /// both the GUI (`AppDelegate`) and the CLI (`Run`) drive the exact same code:
@@ -32,6 +33,13 @@ final class DictationEngine: ObservableObject {
     private let dumpWav: Bool
     private var modelReady = false
 
+    // Per-stage overlay glyphs (emoji or SF Symbol) + shared size/tint.
+    private var listeningGlyph: Glyph
+    private var processingGlyph: Glyph
+    private var doneGlyph: Glyph
+    private var glyphSize: CGFloat
+    private var symbolColor: Color
+
     // AI text cleanup (Apple Foundation Models).
     private var cleanupEnabled: Bool
     private var writingStyle: String
@@ -59,6 +67,11 @@ final class DictationEngine: ObservableObject {
         doubleTapLock: Bool = true,
         cleanup: Bool = false,
         writingStyle: String = "",
+        listeningGlyph: Glyph = .defaultListening,
+        processingGlyph: Glyph = .defaultProcessing,
+        doneGlyph: Glyph = .defaultDone,
+        glyphSize: CGFloat = GlyphSize.medium.points,
+        symbolColor: Color = RGBAColor.defaultSymbol.color,
         dumpWav: Bool = false,
         debugHotkey: Bool = false
     ) {
@@ -70,12 +83,24 @@ final class DictationEngine: ObservableObject {
         self.doubleTapLockEnabled = doubleTapLock
         self.cleanupEnabled = cleanup
         self.writingStyle = writingStyle
+        self.listeningGlyph = listeningGlyph
+        self.processingGlyph = processingGlyph
+        self.doneGlyph = doneGlyph
+        self.glyphSize = glyphSize
+        self.symbolColor = symbolColor
         self.dumpWav = dumpWav
         if showOverlay {
-            let overlay = RecordingOverlay()
-            self.overlay = overlay
-            capture.onLevel = { level in overlay.pushLevel(level) }
+            self.overlay = makeOverlay()
         }
+    }
+
+    /// Build an overlay wired to the audio meter and current glyph choices.
+    private func makeOverlay() -> RecordingOverlay {
+        let overlay = RecordingOverlay()
+        overlay.setGlyphs(listening: listeningGlyph, processing: processingGlyph, done: doneGlyph)
+        overlay.setStyle(size: glyphSize, symbolColor: symbolColor)
+        capture.onLevel = { level in overlay.pushLevel(level) }
+        return overlay
     }
 
     // MARK: - Lifecycle
@@ -163,14 +188,36 @@ final class DictationEngine: ObservableObject {
         guard enabled != overlayEnabled else { return }
         overlayEnabled = enabled
         if enabled {
-            let overlay = RecordingOverlay()
-            self.overlay = overlay
-            capture.onLevel = { level in overlay.pushLevel(level) }
+            self.overlay = makeOverlay()
         } else {
             overlay?.hide()
             overlay = nil
             capture.onLevel = nil
         }
+    }
+
+    /// Update the per-stage overlay glyphs live.
+    func setGlyphs(listening: Glyph, processing: Glyph, done: Glyph) {
+        listeningGlyph = listening
+        processingGlyph = processing
+        doneGlyph = done
+        overlay?.setGlyphs(listening: listening, processing: processing, done: done)
+    }
+
+    /// Update the overlay glyph size and SF Symbol tint live.
+    func setGlyphStyle(size: CGFloat, symbolColor: Color) {
+        glyphSize = size
+        self.symbolColor = symbolColor
+        overlay?.setStyle(size: size, symbolColor: symbolColor)
+    }
+
+    /// Flash the overlay through all three stages so the user can preview their
+    /// glyph choices without dictating. No-op if the overlay is disabled.
+    func previewGlyphs() {
+        guard let overlay else { return }
+        overlay.show(.recording)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { overlay.show(.transcribing) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) { overlay.finish() }
     }
 
     /// Switch to a different model: swap the transcriber and warm it up.

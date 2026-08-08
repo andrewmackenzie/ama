@@ -24,6 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let models = ModelManager()
     private var engine: DictationEngine!
     private var window: NSWindow!
+    private var aboutWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -38,7 +39,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             history: settings.keepHistory ? history : nil,
             doubleTapLock: settings.doubleTapLock,
             cleanup: settings.cleanupEnabled,
-            writingStyle: settings.writingStyle
+            writingStyle: settings.writingStyle,
+            listeningGlyph: settings.listeningGlyph,
+            processingGlyph: settings.processingGlyph,
+            doneGlyph: settings.doneGlyph,
+            glyphSize: settings.glyphSize.points,
+            symbolColor: settings.symbolColor.color
         )
         engine.start()
 
@@ -67,12 +73,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .environmentObject(history)
             .environmentObject(models)
 
-        let hosting = NSHostingController(rootView: root)
-        let window = NSWindow(contentViewController: hosting)
+        // Use an NSHostingView as the window's contentView (rather than a
+        // hosting *controller*) so SwiftUI's ideal content size never drives the
+        // window size — a tall view like About's license text scrolls in place
+        // instead of stretching the window.
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 780, height: 540),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
         window.title = "Ama"
-        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        window.setContentSize(NSSize(width: 780, height: 540))
         window.minSize = NSSize(width: 640, height: 440)
+        // Don't let macOS restore a stale window frame from a previous launch.
+        window.isRestorable = false
+        let hostingView = NSHostingView(rootView: root)
+        // Fill the window without imposing SwiftUI's intrinsic size on it, so the
+        // window keeps its own dimensions and content scrolls within.
+        hostingView.sizingOptions = []
+        window.contentView = hostingView
+        window.setContentSize(NSSize(width: 780, height: 540))
         window.center()
         window.isReleasedWhenClosed = false
         self.window = window
@@ -85,6 +105,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    /// Show the custom About window (Ama menu → About Ama). A dedicated,
+    /// fixed-size, non-resizable window so the license text scrolls in place.
+    @objc private func showAbout() {
+        if aboutWindow == nil {
+            let w = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 600, height: 600),
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false
+            )
+            w.title = "About Ama"
+            let hostingView = NSHostingView(rootView: AboutView())
+            hostingView.sizingOptions = []
+            w.contentView = hostingView
+            w.isReleasedWhenClosed = false
+            w.center()
+            aboutWindow = w
+        }
+        aboutWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
     // MARK: - Menu
 
     private func buildMenu() {
@@ -94,7 +136,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         mainMenu.addItem(appMenuItem)
         let appMenu = NSMenu()
         appMenuItem.submenu = appMenu
-        appMenu.addItem(withTitle: "About Ama", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        let aboutItem = appMenu.addItem(withTitle: "About Ama", action: #selector(showAbout), keyEquivalent: "")
+        aboutItem.target = self
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Hide Ama", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         appMenu.addItem(.separator())

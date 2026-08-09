@@ -45,8 +45,10 @@ final class AudioCapture {
         samples.removeAll(keepingCapacity: true)
         lock.unlock()
 
-        // Tap with input format; convert inside the callback.
-        input.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
+        // Tap with input format; convert inside the callback. A small buffer
+        // means frequent callbacks (~40/s), so the overlay's mic meter reacts
+        // snappily to speech instead of lagging behind it.
+        input.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, _ in
             self?.process(buffer: buffer, converter: converter, targetFormat: targetFormat)
         }
 

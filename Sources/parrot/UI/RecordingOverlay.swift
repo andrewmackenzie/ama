@@ -20,6 +20,7 @@ final class RecordingOverlay {
 
     func show(_ state: State) {
         ensureWindow()
+        if state == .recording { model.resetLevel() }
         guard let window else { return }
         let needsAppear = !window.isVisible
         if needsAppear {
@@ -65,8 +66,11 @@ final class RecordingOverlay {
         }
     }
 
-    /// Kept for the audio pipeline's `onLevel` callback; the emoji cue ignores it.
-    nonisolated func pushLevel(_ level: Float) {}
+    /// Feed the mic level (0…~1 RMS). Drives variable-value SF Symbols (e.g.
+    /// `microphone.and.signal.meter`) on the recording stage. Safe from any thread.
+    nonisolated func pushLevel(_ level: Float) {
+        Task { @MainActor in self.model.updateLevel(level) }
+    }
 
     /// Set the glyph shown for each stage.
     func setGlyphs(listening: Glyph, processing: Glyph, done: Glyph) {
@@ -125,6 +129,23 @@ final class OverlayModel: ObservableObject {
     @Published var done = Glyph.defaultDone
     @Published var size: CGFloat = GlyphSize.medium.points
     @Published var symbolColor: Color = RGBAColor.defaultSymbol.color
+    /// Smoothed mic level (0…1), for variable-value SF Symbols while recording.
+    @Published var level: CGFloat = 0
+    private var smooth: Float = 0
+
+    func updateLevel(_ raw: Float) {
+        // Match the old waveform shaping so quiet speech still moves the meter.
+        let shaped = min(1, sqrt(max(0, raw)) * 3.4)
+        // Light smoothing only — keep it snappy so meter dots flip on/off with
+        // speech and you can feel sentence endings, not a slow flowing fill.
+        smooth += (shaped - smooth) * 0.8
+        level = CGFloat(smooth)
+    }
+
+    func resetLevel() {
+        smooth = 0
+        level = 0
+    }
 }
 
 private struct OverlayEmoji: View {
@@ -139,9 +160,26 @@ private struct OverlayEmoji: View {
         }
     }
 
+    /// The signal meter's dot count (microphone.and.signal.meter has 4).
+    private let meterDots = 4.0
+    /// Level below which we still show a single "armed" dot. Above it, the
+    /// remaining dots fill toward the top as you get louder.
+    private let quietFloor = 0.45
+
     var body: some View {
+        // While recording, map the mic level to a whole number of lit dots so a
+        // signal-meter glyph snaps on/off like a hardware meter: 1 dot when
+        // quiet, climbing to all 4 when loud. Quantized values keep dots fully
+        // on/off instead of fading through partial opacity.
+        let variableValue: Double? = {
+            guard model.state == .recording else { return nil }
+            let s = Double(model.level)
+            let above = max(0, s - quietFloor) / (1 - quietFloor)   // 0…1 loud range
+            let dots = 1 + (above * (meterDots - 1)).rounded()       // 1…4
+            return dots / meterDots
+        }()
         // Sized to the largest glyph so nothing clips when set to Large.
-        GlyphView(glyph: glyph, size: model.size, symbolColor: model.symbolColor)
+        GlyphView(glyph: glyph, size: model.size, symbolColor: model.symbolColor, variableValue: variableValue)
             .frame(width: 160, height: 96)
             .scaleEffect(model.state == .hidden ? 0.4 : 1)
             .opacity(model.state == .hidden ? 0 : 1)
@@ -155,19 +193,33 @@ struct GlyphView: View {
     let glyph: Glyph?
     var size: CGFloat = 44
     var symbolColor: Color = .primary
+    /// 0…1 fill for variable-value SF Symbols (e.g. signal meters). `nil` renders
+    /// the symbol at full value. Ignored by symbols without variable-value support.
+    var variableValue: Double? = nil
 
     var body: some View {
         switch glyph?.kind {
         case .emoji:
             Text(glyph!.value).font(.system(size: size))
         case .symbol:
-            Image(systemName: symbolExists(glyph!.value) ? glyph!.value : "questionmark.square.dashed")
+            let name = symbolExists(glyph!.value) ? glyph!.value : "questionmark.square.dashed"
+            // Monochrome so the whole glyph is your chosen color at full strength;
+            // variable value dims only the inactive meter dots (a lighter shade of
+            // the same color), instead of hierarchical tinting the mic body lighter.
+            symbolImage(name)
                 .font(.system(size: size * 0.86))
-                .symbolRenderingMode(.hierarchical)
+                .symbolRenderingMode(.monochrome)
                 .foregroundStyle(symbolColor)
         case nil:
             Color.clear
         }
+    }
+
+    private func symbolImage(_ name: String) -> Image {
+        if let variableValue {
+            return Image(systemName: name, variableValue: variableValue)
+        }
+        return Image(systemName: name)
     }
 
     private func symbolExists(_ name: String) -> Bool {

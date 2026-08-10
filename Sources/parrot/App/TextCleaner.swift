@@ -69,7 +69,13 @@ enum TextCleaner {
                 let session = LanguageModelSession(instructions: instructions(systemPrompt: systemPrompt, profile: profile, context: context))
                 // Low temperature keeps the rewrite deterministic and stops the
                 // small on-device model from rambling or leaking its own rules.
-                let options = GenerationOptions(temperature: 0.2)
+                // Cap output length so a runaway generation (small models sometimes
+                // loop and emit tokens up to the model's hard limit, which can take
+                // many seconds) can't stall dictation. Cleanup output tracks the
+                // input length, so scale the cap to it with generous headroom.
+                let wordCount = trimmed.split(whereSeparator: \.isWhitespace).count
+                let maxTokens = min(2000, max(128, wordCount * 4))
+                let options = GenerationOptions(temperature: 0.2, maximumResponseTokens: maxTokens)
                 // Frame the request in the same Input:/Output: shape as the
                 // few-shot examples. Handing the model a bare sentence makes the
                 // small on-device model *answer* it (chat) instead of cleaning it;

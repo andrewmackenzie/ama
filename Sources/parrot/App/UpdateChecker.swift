@@ -108,35 +108,61 @@ final class UpdateChecker: ObservableObject {
     }
 }
 
-/// The green "Update available" pill for the window title bar. Empty (zero size)
-/// when there's no update, so it never occupies the title bar otherwise.
+/// The green "Update available" pill for the window title bar. Shows for either
+/// an app update (downloads the pkg) or a model update (re-downloads the model),
+/// preferring the app update. Empty (zero size) when there's nothing to update.
 struct UpdatePillView: View {
-    @ObservedObject var checker: UpdateChecker
+    @ObservedObject var appChecker: UpdateChecker
+    @ObservedObject var models: ModelManager
 
+    /// Fixed size in both states. The title-bar hosting view is a fixed frame;
+    /// letting the content collapse to 0×0 when there's no update creates a
+    /// size conflict that makes AppKit re-layout forever (pins the CPU).
     var body: some View {
-        if let update = checker.available {
-            Button {
-                checker.downloadAndOpen()
-            } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: checker.isDownloading ? "arrow.down.circle" : "arrow.down.circle.fill")
-                        .imageScale(.small)
-                    Text(checker.isDownloading ? "Downloading…" : "Update available")
-                }
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 3)
-                .background(Color.green, in: Capsule())
-                .contentShape(Capsule())
-            }
-            .buttonStyle(.plain)
-            .disabled(checker.isDownloading)
-            .help("Version \(update.shortVersion) is available — click to download and install")
-            .padding(.trailing, 10)
-            .padding(.vertical, 4)
+        content
+            .frame(width: 168, height: 28, alignment: .trailing)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if let update = appChecker.available {
+            pill(
+                label: appChecker.isDownloading ? "Downloading…" : "Update available",
+                busy: appChecker.isDownloading,
+                help: "Ama \(update.shortVersion) is available — click to download and install",
+                action: { appChecker.downloadAndOpen() }
+            )
+        } else if let model = models.updatableModel {
+            let busy = models.downloadingID == model.id
+            pill(
+                label: busy ? "Updating model…" : "Model update",
+                busy: busy,
+                help: "A newer build of \(model.displayName) is available — click to update",
+                action: { Task { try? await models.download(model) } }
+            )
         } else {
-            Color.clear.frame(width: 0, height: 0)
+            Color.clear
         }
+    }
+
+    private func pill(label: String, busy: Bool, help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: busy ? "arrow.down.circle" : "arrow.down.circle.fill")
+                    .imageScale(.small)
+                Text(label)
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 3)
+            .background(Color.green, in: Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(busy)
+        .help(help)
+        .padding(.trailing, 10)
+        .padding(.vertical, 4)
     }
 }

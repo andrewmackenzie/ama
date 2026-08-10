@@ -72,6 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         updateChecker.start()
+        Task { await models.checkForUpdates() }
 
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -121,7 +122,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Green "Update available" pill at the trailing edge of the title bar.
         let pill = NSTitlebarAccessoryViewController()
         pill.layoutAttribute = .right
-        let pillHost = NSHostingView(rootView: UpdatePillView(checker: updateChecker))
+        let pillHost = NSHostingView(rootView: UpdatePillView(appChecker: updateChecker, models: models))
         pillHost.frame = NSRect(x: 0, y: 0, width: 168, height: 28)
         pill.view = pillHost
         window.addTitlebarAccessoryViewController(pill)
@@ -162,6 +163,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// title-bar pill, not a dialog.
     @objc private func checkForUpdates() {
         Task { await updateChecker.check() }
+        Task { await models.checkForUpdates() }
     }
 
     /// Menu action (Ama ▸ Settings…, ⌘,).

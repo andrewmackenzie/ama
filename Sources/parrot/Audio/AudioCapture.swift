@@ -18,6 +18,8 @@ final class AudioCapture {
     private var samples: [Float] = []
     private var isRecording = false
     private let lock = NSLock()
+    /// Throttle for the level callback (audio-thread only), in mach nanoseconds.
+    private var lastLevelNanos: UInt64 = 0
 
     /// Called for every audio buffer with the buffer's RMS level (0…~1).
     /// Invoked on an arbitrary thread; hop to main if you touch UI.
@@ -26,6 +28,7 @@ final class AudioCapture {
     /// Begin recording. Idempotent — calling while already recording is a no-op.
     func start() throws {
         guard !isRecording else { return }
+        lastLevelNanos = 0
 
         let input = engine.inputNode
         let inputFormat = input.outputFormat(forBus: 0)
@@ -128,8 +131,16 @@ final class AudioCapture {
         samples.append(contentsOf: chunk)
         lock.unlock()
 
+        // Forward the level to the overlay at most ~30×/s. The tap fires ~47×/s
+        // (1024-frame buffer); without throttling that floods the main actor with
+        // UI updates and can stall it. `lastLevelNanos` is touched only here on
+        // the (serialized) audio thread, so it needs no lock.
         if let onLevel {
-            onLevel(computeRMS(chunk))
+            let now = DispatchTime.now().uptimeNanoseconds
+            if now &- lastLevelNanos >= 33_000_000 {
+                lastLevelNanos = now
+                onLevel(computeRMS(chunk))
+            }
         }
     }
 }

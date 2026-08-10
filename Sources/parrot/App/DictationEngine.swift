@@ -360,7 +360,10 @@ final class DictationEngine: ObservableObject {
         // adapt to it — and skip cleanup entirely in code/terminal apps.
         let appContext = AppContext.frontmost()
         let doCleanup = cleanupEnabled && !appContext.category.skipsCleanup
-        Task {
+        // Run transcription OFF the main actor. As a main-actor Task it could sit
+        // unscheduled for tens of seconds even with the app idle; the ANE work is
+        // off-main anyway, so only the final text-insert needs the main actor.
+        Task.detached(priority: .userInitiated) {
             do {
                 let rawText = try await transcriber.transcribe(samples)
                 var cleaned = rawText

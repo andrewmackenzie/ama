@@ -26,17 +26,11 @@ actor WhisperKitTranscriber: Transcriber {
         // doesn't pay the one-time Neural Engine graph-specialization cost
         // (loading the model isn't enough; the first transcribe compiles it).
         if let pipeline {
-            // Prime with noise, not silence: silence trips Whisper's no-speech
-            // detector and returns in ~10ms without ever running the decoder, so
-            // the first *real* transcribe still pays the one-time ANE decoder
-            // compile. Noise forces a real decode pass (~0.1s), warming that path
-            // so the first dictation is as fast as the rest.
-            var seed: UInt64 = 0x9E3779B97F4A7C15
-            let noise: [Float] = (0..<48_000).map { _ in
-                seed = seed &* 6364136223846793005 &+ 1442695040888963407
-                return Float(Int32(truncatingIfNeeded: seed >> 33)) / Float(Int32.max) * 0.25
-            }
-            _ = try? await pipeline.transcribe(audioArray: noise)
+            // Prime with real (synthesized) speech, not silence or noise: those
+            // don't generate enough tokens to compile the decoder, so the first
+            // real dictation still pays the one-time Neural Engine decoder
+            // compile. A real-speech decode warms the full path.
+            _ = try? await pipeline.transcribe(audioArray: PrimingAudio.samples)
         }
         FileHandle.standardError.write(Data("✓ \(model.id) ready\n".utf8))
     }

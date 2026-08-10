@@ -31,10 +31,7 @@ struct HomeView: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            Image(systemName: symbol)
-                .font(.system(size: 22, weight: .medium))
-                .foregroundStyle(accent)
-                .symbolEffect(.pulse, isActive: isActive)
+            statusIcon
                 .frame(width: 30)
             VStack(alignment: .leading, spacing: 2) {
                 Text(headline).font(.headline)
@@ -48,6 +45,20 @@ struct HomeView: View {
                 .background(.quaternary, in: Capsule())
         }
         .padding(.horizontal, 20).padding(.vertical, 14)
+    }
+
+    // While recording, show the chosen listening glyph (emoji or SF Symbol);
+    // otherwise the status SF Symbol for the current state.
+    @ViewBuilder
+    private var statusIcon: some View {
+        if case .recording = engine.status {
+            GlyphView(glyph: settings.listeningGlyph, size: 22, symbolColor: settings.symbolColor.color)
+        } else {
+            Image(systemName: symbol)
+                .font(.system(size: 22, weight: .medium))
+                .foregroundStyle(accent)
+                .symbolEffect(.pulse, isActive: isActive)
+        }
     }
 
     // MARK: - Permission banner

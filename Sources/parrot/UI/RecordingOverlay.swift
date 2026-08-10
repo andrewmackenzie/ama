@@ -177,11 +177,17 @@ private struct OverlayEmoji: View {
     }
 
     var body: some View {
-        content
-            .frame(width: 160, height: 96)
-            .scaleEffect(model.state == .hidden ? 0.4 : 1)
-            .opacity(model.state == .hidden ? 0 : 1)
-            .animation(.timingCurve(0.16, 1, 0.3, 1, duration: 0.24), value: model.state)
+        ZStack {
+            // Dark circular backing so the glyph reads on any wallpaper.
+            Circle()
+                .fill(Color.black.opacity(0.75))
+                .frame(width: model.size + 28, height: model.size + 28)
+            content
+        }
+        .frame(width: 160, height: 96)
+        .scaleEffect(model.state == .hidden ? 0.4 : 1)
+        .opacity(model.state == .hidden ? 0 : 1)
+        .animation(.timingCurve(0.16, 1, 0.3, 1, duration: 0.24), value: model.state)
     }
 
     @ViewBuilder

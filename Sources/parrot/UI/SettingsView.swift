@@ -111,7 +111,7 @@ struct SettingsView: View {
             }
 
             Section("Text cleanup") {
-                Toggle("Clean up dictated text (AI)", isOn: $settings.cleanupEnabled)
+                Toggle("Clean up dictated text (on-device AI)", isOn: $settings.cleanupEnabled)
                     .onChange(of: settings.cleanupEnabled) { _, newValue in
                         engine.setCleanup(newValue)
                     }
@@ -151,6 +151,32 @@ struct SettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+
+                    DisclosureGroup("Advanced: cleanup system prompt") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("This is the exact instruction sent to the on-device model — the core rules and examples that keep it cleaning text instead of replying to it. Edit only if you understand prompt design; a bad prompt can make cleanup add words, chat back, or fail. Use Reset if it misbehaves.", systemImage: "exclamationmark.triangle.fill")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            TextEditor(text: $settings.cleanupSystemPrompt)
+                                .font(.system(.caption, design: .monospaced))
+                                .frame(minHeight: 180)
+                                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.25)))
+                                .onChange(of: settings.cleanupSystemPrompt) { _, newValue in
+                                    engine.setCleanupSystemPrompt(newValue)
+                                }
+                            HStack {
+                                Spacer()
+                                Button("Reset to default") {
+                                    settings.cleanupSystemPrompt = TextCleaner.defaultSystemPrompt
+                                    engine.setCleanupSystemPrompt(TextCleaner.defaultSystemPrompt)
+                                }
+                                .font(.caption)
+                                .buttonStyle(.link)
+                            }
+                        }
+                        .padding(.top, 4)
+                    }
+                    .font(.callout.weight(.semibold))
                 }
             }
 
@@ -283,7 +309,7 @@ enum GlyphSuggestions {
     static let processingEmoji = ["🤔", "⏳", "🧠", "💭", "⚙️"]
     static let doneEmoji = ["👍", "✅", "✨", "🎉", "👌"]
 
-    static let listeningSymbols = ["ear.fill", "waveform", "mic.fill", "dot.radiowaves.left.and.right", "waveform.badge.mic"]
-    static let processingSymbols = ["brain", "hourglass", "ellipsis", "sparkles", "gearshape.fill", "wand.and.stars"]
-    static let doneSymbols = ["checkmark.circle.fill", "hand.thumbsup.fill", "checkmark.seal.fill", "sparkles"]
+    static let listeningSymbols = ["microphone.and.signal.meter.fill", "waveform", "mic.fill", "ear.fill", "dot.radiowaves.left.and.right"]
+    static let processingSymbols = ["progress.indicator", "brain", "hourglass", "ellipsis", "sparkles", "wand.and.stars"]
+    static let doneSymbols = ["checkmark", "checkmark.circle.fill", "checkmark.seal.fill", "hand.thumbsup.fill"]
 }

@@ -78,9 +78,9 @@ struct Glyph: Equatable {
         self.value = v
     }
 
-    static let defaultListening = Glyph(kind: .emoji, value: "👂")
-    static let defaultProcessing = Glyph(kind: .emoji, value: "🤔")
-    static let defaultDone = Glyph(kind: .emoji, value: "👍")
+    static let defaultListening = Glyph(kind: .symbol, value: "microphone.and.signal.meter.fill")
+    static let defaultProcessing = Glyph(kind: .symbol, value: "progress.indicator")
+    static let defaultDone = Glyph(kind: .symbol, value: "checkmark")
 }
 
 /// User preferences, persisted to `UserDefaults`. Single source of truth for
@@ -102,6 +102,7 @@ final class Settings: ObservableObject {
         static let historyLimit = "historyLimit"
         static let cleanupEnabled = "cleanupEnabled"
         static let writingStyle = "writingStyle"
+        static let cleanupSystemPrompt = "cleanupSystemPrompt"
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
         static let listeningGlyph = "listeningGlyph"
         static let processingGlyph = "processingGlyph"
@@ -122,6 +123,7 @@ final class Settings: ObservableObject {
             Key.historyLimit: 200,
             Key.cleanupEnabled: false,
             Key.writingStyle: TextCleaner.defaultProfile,
+            Key.cleanupSystemPrompt: TextCleaner.defaultSystemPrompt,
             Key.hasCompletedOnboarding: false,
             Key.listeningGlyph: Glyph.defaultListening.storage,
             Key.processingGlyph: Glyph.defaultProcessing.storage,
@@ -174,6 +176,11 @@ final class Settings: ObservableObject {
     var writingStyle: String {
         get { defaults.string(forKey: Key.writingStyle) ?? TextCleaner.defaultProfile }
         set { objectWillChange.send(); defaults.set(newValue, forKey: Key.writingStyle) }
+    }
+
+    var cleanupSystemPrompt: String {
+        get { defaults.string(forKey: Key.cleanupSystemPrompt) ?? TextCleaner.defaultSystemPrompt }
+        set { objectWillChange.send(); defaults.set(newValue, forKey: Key.cleanupSystemPrompt) }
     }
 
     var hasCompletedOnboarding: Bool {

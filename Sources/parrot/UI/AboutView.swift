@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct AboutView: View {
@@ -19,9 +20,9 @@ struct AboutView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 14) {
-                Image(systemName: "waveform")
-                    .font(.system(size: 40))
-                    .foregroundStyle(Color.accentColor)
+                Image(nsImage: NSApplication.shared.applicationIconImage)
+                    .resizable()
+                    .frame(width: 64, height: 64)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Ama").font(.title.weight(.semibold))
                     Text("Version \(version)").font(.callout).foregroundStyle(.secondary)

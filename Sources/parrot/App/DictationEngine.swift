@@ -43,6 +43,7 @@ final class DictationEngine: ObservableObject {
     // AI text cleanup (Apple Foundation Models).
     private var cleanupEnabled: Bool
     private var writingStyle: String
+    private var cleanupSystemPrompt: String
 
     // Double-tap-to-lock state.
     private var doubleTapLockEnabled: Bool
@@ -67,6 +68,7 @@ final class DictationEngine: ObservableObject {
         doubleTapLock: Bool = true,
         cleanup: Bool = false,
         writingStyle: String = "",
+        cleanupSystemPrompt: String = TextCleaner.defaultSystemPrompt,
         listeningGlyph: Glyph = .defaultListening,
         processingGlyph: Glyph = .defaultProcessing,
         doneGlyph: Glyph = .defaultDone,
@@ -83,6 +85,7 @@ final class DictationEngine: ObservableObject {
         self.doubleTapLockEnabled = doubleTapLock
         self.cleanupEnabled = cleanup
         self.writingStyle = writingStyle
+        self.cleanupSystemPrompt = cleanupSystemPrompt
         self.listeningGlyph = listeningGlyph
         self.processingGlyph = processingGlyph
         self.doneGlyph = doneGlyph
@@ -143,6 +146,9 @@ final class DictationEngine: ObservableObject {
                     self.modelReady = true
                     if self.hotkeyActive { self.status = .idle }
                 }
+                // Warm the cleanup model too (if enabled) so the first cleanup
+                // isn't a cold start on top of the first transcription.
+                if cleanupEnabled { await TextCleaner.prewarm() }
             } catch {
                 await MainActor.run {
                     self.status = .error("Model failed to load: \(error.localizedDescription)")
@@ -167,8 +173,12 @@ final class DictationEngine: ObservableObject {
         self.history = history
     }
 
-    func setCleanup(_ enabled: Bool) { cleanupEnabled = enabled }
+    func setCleanup(_ enabled: Bool) {
+        cleanupEnabled = enabled
+        if enabled { Task { await TextCleaner.prewarm() } }
+    }
     func setWritingStyle(_ style: String) { writingStyle = style }
+    func setCleanupSystemPrompt(_ prompt: String) { cleanupSystemPrompt = prompt }
 
     func setDoubleTapLock(_ enabled: Bool) {
         doubleTapLockEnabled = enabled
@@ -345,22 +355,24 @@ final class DictationEngine: ObservableObject {
 
         let transcriber = self.transcriber
         let style = writingStyle
+        let sysPrompt = cleanupSystemPrompt
         // Read the target (frontmost) app now, on the main actor, so cleanup can
         // adapt to it — and skip cleanup entirely in code/terminal apps.
         let appContext = AppContext.frontmost()
         let doCleanup = cleanupEnabled && !appContext.category.skipsCleanup
         Task {
             do {
-                var text = try await transcriber.transcribe(samples)
-                if doCleanup, !text.isEmpty {
-                    text = await TextCleaner.clean(text, profile: style, context: appContext.promptContext)
+                let rawText = try await transcriber.transcribe(samples)
+                var cleaned = rawText
+                if doCleanup, !rawText.isEmpty {
+                    cleaned = await TextCleaner.clean(rawText, systemPrompt: sysPrompt, profile: style, context: appContext.promptContext)
                 }
-                let finalText = text
+                let finalText = cleaned
                 await MainActor.run {
                     if !finalText.isEmpty {
                         TextInjector.inject(finalText)
                         self.lastTranscript = finalText
-                        self.history?.add(finalText)
+                        self.history?.add(finalText, raw: rawText)
                     }
                     self.overlay?.finish()
                     self.status = .idle

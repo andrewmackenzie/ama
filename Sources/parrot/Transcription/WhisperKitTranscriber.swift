@@ -22,6 +22,13 @@ actor WhisperKitTranscriber: Transcriber {
         FileHandle.standardError.write(Data("loading \(model.id)...\n".utf8))
         let config = WhisperKitConfig(model: whisperKitID, verbose: false, prewarm: true, load: true)
         pipeline = try await WhisperKit(config)
+        // Run one throwaway inference on silence so the first *real* dictation
+        // doesn't pay the one-time Neural Engine graph-specialization cost
+        // (loading the model isn't enough; the first transcribe compiles it).
+        if let pipeline {
+            let silence = [Float](repeating: 0, count: 16_000)   // 1s @ 16 kHz
+            _ = try? await pipeline.transcribe(audioArray: silence)
+        }
         FileHandle.standardError.write(Data("✓ \(model.id) ready\n".utf8))
     }
 

@@ -8,6 +8,7 @@ final class AudioCapture {
     enum CaptureError: Error {
         case engineStartFailed(Error)
         case converterCreationFailed
+        case noInputAvailable
     }
 
     static let targetSampleRate: Double = 16_000
@@ -29,6 +30,14 @@ final class AudioCapture {
         let input = engine.inputNode
         let inputFormat = input.outputFormat(forBus: 0)
 
+        // A 0-channel / 0-sample-rate input format means there's no usable mic
+        // right now (permission not granted yet, or no input device). Installing
+        // a tap with such a format throws an Obj-C exception that crashes the
+        // process, so bail out gracefully and let the caller surface it.
+        guard inputFormat.channelCount > 0, inputFormat.sampleRate > 0 else {
+            throw CaptureError.noInputAvailable
+        }
+
         let targetFormat = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
             sampleRate: AudioCapture.targetSampleRate,
@@ -44,6 +53,10 @@ final class AudioCapture {
         lock.lock()
         samples.removeAll(keepingCapacity: true)
         lock.unlock()
+
+        // Defensively remove any stale tap before installing — installing a
+        // second tap on the same bus throws an Obj-C exception (a crash).
+        input.removeTap(onBus: 0)
 
         // Tap with input format; convert inside the callback. A small buffer
         // means frequent callbacks (~40/s), so the overlay's mic meter reacts

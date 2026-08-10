@@ -166,24 +166,41 @@ private struct OverlayEmoji: View {
     /// remaining dots fill toward the top as you get louder.
     private let quietFloor = 0.45
 
+    /// While recording, map the mic level to a whole number of lit dots so a
+    /// signal-meter glyph snaps on/off like a hardware meter: 1 dot when quiet,
+    /// climbing to all 4 when loud. Quantized values keep dots fully on/off.
+    private var recordingValue: Double {
+        let s = Double(model.level)
+        let above = max(0, s - quietFloor) / (1 - quietFloor)   // 0…1 loud range
+        let dots = 1 + (above * (meterDots - 1)).rounded()       // 1…4
+        return dots / meterDots
+    }
+
     var body: some View {
-        // While recording, map the mic level to a whole number of lit dots so a
-        // signal-meter glyph snaps on/off like a hardware meter: 1 dot when
-        // quiet, climbing to all 4 when loud. Quantized values keep dots fully
-        // on/off instead of fading through partial opacity.
-        let variableValue: Double? = {
-            guard model.state == .recording else { return nil }
-            let s = Double(model.level)
-            let above = max(0, s - quietFloor) / (1 - quietFloor)   // 0…1 loud range
-            let dots = 1 + (above * (meterDots - 1)).rounded()       // 1…4
-            return dots / meterDots
-        }()
-        // Sized to the largest glyph so nothing clips when set to Large.
-        GlyphView(glyph: glyph, size: model.size, symbolColor: model.symbolColor, variableValue: variableValue)
+        content
             .frame(width: 160, height: 96)
             .scaleEffect(model.state == .hidden ? 0.4 : 1)
             .opacity(model.state == .hidden ? 0 : 1)
             .animation(.timingCurve(0.16, 1, 0.3, 1, duration: 0.24), value: model.state)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch model.state {
+        case .transcribing:
+            // No real progress signal, so loop a variable-value fill (0→1) to
+            // animate progress.indicator like an indeterminate spinner. Symbols
+            // without variable-value support just ignore it.
+            TimelineView(.animation) { ctx in
+                let t = ctx.date.timeIntervalSinceReferenceDate
+                let phase = t.truncatingRemainder(dividingBy: 1.1) / 1.1
+                GlyphView(glyph: glyph, size: model.size, symbolColor: model.symbolColor, variableValue: phase)
+            }
+        case .recording:
+            GlyphView(glyph: glyph, size: model.size, symbolColor: model.symbolColor, variableValue: recordingValue)
+        default:
+            GlyphView(glyph: glyph, size: model.size, symbolColor: model.symbolColor)
+        }
     }
 }
 

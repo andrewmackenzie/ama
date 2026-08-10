@@ -3,12 +3,17 @@ import Foundation
 /// A single dictated transcript.
 struct Transcript: Codable, Identifiable, Equatable {
     let id: UUID
+    /// The final text that was inserted (cleaned, if cleanup ran).
     let text: String
+    /// The raw Whisper output before cleanup. `nil` when there was no cleanup
+    /// (or on legacy items), i.e. when it would equal `text`.
+    let raw: String?
     let date: Date
 
-    init(id: UUID = UUID(), text: String, date: Date) {
+    init(id: UUID = UUID(), text: String, raw: String? = nil, date: Date) {
         self.id = id
         self.text = text
+        self.raw = raw
         self.date = date
     }
 }
@@ -37,13 +42,22 @@ final class History: ObservableObject {
         }
     }
 
-    func add(_ text: String, date: Date = Date()) {
+    func add(_ text: String, raw: String? = nil, date: Date = Date()) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        items.insert(Transcript(text: trimmed, date: date), at: 0)
+        // Only keep the raw output when it actually differs from the final text
+        // (i.e. cleanup changed something worth showing).
+        let trimmedRaw = raw?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rawToStore = (trimmedRaw?.isEmpty == false && trimmedRaw != trimmed) ? trimmedRaw : nil
+        items.insert(Transcript(text: trimmed, raw: rawToStore, date: date), at: 0)
         if items.count > limit {
             items = Array(items.prefix(limit))
         }
+        persist()
+    }
+
+    func remove(_ id: UUID) {
+        items.removeAll { $0.id == id }
         persist()
     }
 

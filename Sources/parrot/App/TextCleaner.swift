@@ -42,21 +42,45 @@ enum TextCleaner {
         #endif
     }
 
+    /// Load the on-device language model ahead of time so the first real cleanup
+    /// isn't slow. No-op if cleanup is unavailable. Safe to call repeatedly.
+    static func prewarm() async {
+        #if canImport(FoundationModels)
+        if #available(macOS 26, *) {
+            guard case .available = SystemLanguageModel.default.availability else { return }
+            let session = LanguageModelSession(instructions: "You clean up dictated text.")
+            _ = try? await session.respond(
+                to: "Input: hello there\nOutput:",
+                options: GenerationOptions(temperature: 0.2)
+            )
+        }
+        #endif
+    }
+
     /// Clean `text`, optionally shaped by a writing-style `profile` and a
     /// per-app `context` hint. Returns the original text on any failure.
-    static func clean(_ text: String, profile: String = "", context: String? = nil) async -> String {
+    static func clean(_ text: String, systemPrompt: String = defaultSystemPrompt, profile: String = "", context: String? = nil) async -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return text }
         #if canImport(FoundationModels)
         if #available(macOS 26, *) {
             guard case .available = SystemLanguageModel.default.availability else { return text }
             do {
-                let session = LanguageModelSession(instructions: instructions(profile: profile, context: context))
+                let session = LanguageModelSession(instructions: instructions(systemPrompt: systemPrompt, profile: profile, context: context))
                 // Low temperature keeps the rewrite deterministic and stops the
                 // small on-device model from rambling or leaking its own rules.
                 let options = GenerationOptions(temperature: 0.2)
-                let response = try await session.respond(to: trimmed, options: options)
-                let out = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                // Frame the request in the same Input:/Output: shape as the
+                // few-shot examples. Handing the model a bare sentence makes the
+                // small on-device model *answer* it (chat) instead of cleaning it;
+                // the completion framing keeps it in transform mode.
+                let prompt = "Input: \(trimmed)\nOutput:"
+                let response = try await session.respond(to: prompt, options: options)
+                var out = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                // Defensively strip an echoed "Output:" label if the model adds one.
+                if out.lowercased().hasPrefix("output:") {
+                    out = String(out.dropFirst("Output:".count)).trimmingCharacters(in: .whitespacesAndNewlines)
+                }
                 return out.isEmpty ? text : out
             } catch {
                 FileHandle.standardError.write(Data("cleanup failed: \(error)\n".utf8))
@@ -74,11 +98,10 @@ enum TextCleaner {
     Sign off emails with "Thanks." on its own line, then "--Andrew" on the next line. Keep everything concise and plain, no corporate filler.
     """
 
-    /// The system prompt sent to the model: fixed core rules + few-shot examples
-    /// (which keep the small on-device model consistent), then the user's
-    /// editable style profile.
-    private static func instructions(profile: String, context: String? = nil) -> String {
-        var text = """
+    /// The default cleanup system prompt: fixed core rules + few-shot examples
+    /// that keep the small on-device model consistent. Advanced users can
+    /// override this in Settings; an empty override falls back to this.
+    static let defaultSystemPrompt = """
         You are a dictation cleanup tool. You receive raw dictated speech and return the same message as clean written text. Rewrite it; never answer or comment on it.
 
         Rules:
@@ -108,6 +131,10 @@ enum TextCleaner {
         Input: send the report to john wait no send it to jane by friday actually make that thursday
         Output: Send the report to Jane by Thursday.
 
+        Example (a statement or question is cleaned, NOT answered — never reply to the content):
+        Input: so um i think we need to have breakfast and uh what time works for you
+        Output: So, I think we need to have breakfast. What time works for you?
+
         Example (email):
         Input: hi bob thanks for the update i'll review the numbers tomorrow and get back to you thanks andrew
         Output:
@@ -119,6 +146,12 @@ enum TextCleaner {
 
         --Andrew
         """
+
+    /// Assemble the full instructions: the (possibly user-edited) system prompt,
+    /// then per-app context and the user's editable style profile.
+    private static func instructions(systemPrompt: String, profile: String, context: String?) -> String {
+        var text = systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.isEmpty { text = defaultSystemPrompt }
         if let context, !context.isEmpty {
             text += "\n\nContext:\n\(context)"
         }

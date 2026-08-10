@@ -25,6 +25,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var engine: DictationEngine!
     private var window: NSWindow!
     private var aboutWindow: NSWindow?
+    private var preferencesWindow: NSWindow?
+    private let preferencesRouter = PreferencesRouter()
+    private let updateChecker = UpdateChecker()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -40,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             doubleTapLock: settings.doubleTapLock,
             cleanup: settings.cleanupEnabled,
             writingStyle: settings.writingStyle,
+            cleanupSystemPrompt: settings.cleanupSystemPrompt,
             listeningGlyph: settings.listeningGlyph,
             processingGlyph: settings.processingGlyph,
             doneGlyph: settings.doneGlyph,
@@ -50,6 +54,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         buildMenu()
         buildWindow()
+
+        // Let anywhere in the app (e.g. the Dictation permission banner) open the
+        // Settings window on a specific tab.
+        NotificationCenter.default.addObserver(
+            forName: .amaOpenPreferences, object: nil, queue: .main
+        ) { [weak self] note in
+            MainActor.assumeIsolated {
+                let tab: PrefTab? = (note.object as? String) == "permissions" ? .permissions : nil
+                self?.openPreferences(tab: tab)
+            }
+        }
+
+        // First run with missing permissions: send them straight to Permissions.
+        if !settings.hasCompletedOnboarding, !DoctorReport.allOK(DoctorReport.run()) {
+            openPreferences(tab: .permissions)
+        }
+
+        updateChecker.start()
 
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -95,6 +117,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.setContentSize(NSSize(width: 780, height: 540))
         window.center()
         window.isReleasedWhenClosed = false
+
+        // Green "Update available" pill at the trailing edge of the title bar.
+        let pill = NSTitlebarAccessoryViewController()
+        pill.layoutAttribute = .right
+        let pillHost = NSHostingView(rootView: UpdatePillView(checker: updateChecker))
+        pillHost.frame = NSRect(x: 0, y: 0, width: 168, height: 28)
+        pill.view = pillHost
+        window.addTitlebarAccessoryViewController(pill)
+
         self.window = window
         showWindow()
     }
@@ -127,6 +158,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    /// Menu action (Ama ▸ Check for Updates…). Silent — result shows as the
+    /// title-bar pill, not a dialog.
+    @objc private func checkForUpdates() {
+        Task { await updateChecker.check() }
+    }
+
+    /// Menu action (Ama ▸ Settings…, ⌘,).
+    @objc private func showPreferences() {
+        openPreferences(tab: nil)
+    }
+
+    /// Show the Settings window (Settings / Models / Permissions), optionally on
+    /// a specific tab.
+    private func openPreferences(tab: PrefTab?) {
+        if let tab { preferencesRouter.tab = tab }
+        if preferencesWindow == nil {
+            let root = PreferencesView(router: preferencesRouter)
+                .environmentObject(engine)
+                .environmentObject(settings)
+                .environmentObject(history)
+                .environmentObject(models)
+            let w = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 720, height: 560),
+                styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                backing: .buffered,
+                defer: false
+            )
+            w.title = "Settings"
+            w.minSize = NSSize(width: 620, height: 460)
+            w.isRestorable = false
+            let hv = NSHostingView(rootView: root)
+            hv.sizingOptions = []
+            w.contentView = hv
+            w.setContentSize(NSSize(width: 720, height: 560))
+            w.center()
+            w.isReleasedWhenClosed = false
+            preferencesWindow = w
+        }
+        preferencesWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
     // MARK: - Menu
 
     private func buildMenu() {
@@ -138,6 +211,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appMenuItem.submenu = appMenu
         let aboutItem = appMenu.addItem(withTitle: "About Ama", action: #selector(showAbout), keyEquivalent: "")
         aboutItem.target = self
+        appMenu.addItem(.separator())
+        let updateItem = appMenu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+        updateItem.target = self
+        appMenu.addItem(.separator())
+        let prefItem = appMenu.addItem(withTitle: "Settings…", action: #selector(showPreferences), keyEquivalent: ",")
+        prefItem.target = self
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Hide Ama", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         appMenu.addItem(.separator())

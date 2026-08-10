@@ -159,7 +159,7 @@ struct HomeView: View {
         case .recording: return .red
         case .transcribing, .loading: return .orange
         case .error: return .red
-        case .idle: return .accentColor
+        case .idle: return settings.symbolColor.color   // match the overlay color chosen in Settings
         }
     }
 

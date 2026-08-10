@@ -1,5 +1,41 @@
 # Dictation "stuck processing" — intermittent stall (investigation handoff)
 
+Status: **root cause identified as ANE contention; fixed by moving inference to the GPU.**
+See "Resolution" below. The original handoff notes are kept underneath for history.
+
+## Resolution (this session)
+
+**Cause: Neural Engine (ANE) contention.** WhisperKit defaults the audio encoder and the
+autoregressive text decoder to `.cpuAndNeuralEngine` (`WhisperKit/Core/Models.swift:103,119`).
+The ANE is a shared, serialized system resource. On macOS 26 the OS itself (Apple Intelligence,
+Siri, Photos analysis) uses it constantly in the background. When another process is holding the
+ANE, CoreML's *async* prediction (`prediction(from:options:)`, used on macOS 14+ —
+`ArgmaxCore/MLModelExtensions.swift:16`) suspends and its continuation is not resumed until the
+ANE frees. The whole app then sits idle — every thread parked on a semaphore, the ANEServices
+thread waiting — which is exactly the "all idle during the stall" clue. Duration is unpredictable
+(2–213s) because it depends on when the OS releases the ANE.
+
+Why the earlier evidence pointed elsewhere: the "task doesn't start for 25s" gap was measured on
+the **old main-actor `Task {}`** and was a real *scheduling* artifact — the `Task.detached`
+change fixed that. The *residual* intermittent stalls after that change are the ANE-contention
+suspension **inside** `pipeline.transcribe`, which holds the transcriber actor while it waits.
+
+**Fix:** `WhisperKitTranscriber.warmUp()` now passes `ModelComputeOptions` forcing mel /
+audioEncoder / textDecoder onto `.cpuAndGPU` (prefill stays `.cpuOnly`). The GPU is effectively
+private to the app and not contended by system ML, so decode never queues behind another process.
+For the default `base.en` model this is as fast as ANE; larger models are marginally slower but
+never stall.
+
+**How to verify:** dictate 15–20 times in a row, including immediately after launch and while
+Apple Intelligence is active (e.g. right after logging in, or with Photos analyzing). The
+processing glyph should clear in ~0.1–0.3s every time, with no multi-second hangs. If a stall
+still appears, re-instrument (below) and confirm whether the wait is now inside `pipeline.transcribe`
+(would suggest GPU is *also* contended — unlikely) vs. task scheduling.
+
+---
+
+## Original handoff (before resolution)
+
 Status: **partially fixed, still reproduces intermittently.** This doc is a handoff for a
 fresh context to finish diagnosing/fixing.
 

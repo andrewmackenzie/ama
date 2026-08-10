@@ -20,7 +20,29 @@ actor WhisperKitTranscriber: Transcriber {
             throw TranscriberError.missingEngineID
         }
         FileHandle.standardError.write(Data("loading \(model.id)...\n".utf8))
-        let config = WhisperKitConfig(model: whisperKitID, verbose: false, prewarm: true, load: true)
+        // Run inference on the GPU, not the Neural Engine.
+        //
+        // WhisperKit defaults the audio encoder and (autoregressive) text decoder
+        // to `.cpuAndNeuralEngine`. The ANE is a *shared, serialized* system
+        // resource: on macOS 26 the OS itself (Apple Intelligence, Siri, Photos
+        // analysis) hammers it in the background. When another process holds the
+        // ANE, CoreML's async prediction suspends and its continuation isn't
+        // resumed until the ANE frees — so the app sits fully idle (every thread
+        // parked on a semaphore, the ANEServices thread waiting) for an
+        // unpredictable stretch. That is the intermittent "stuck processing" stall:
+        // variable 2–213s, often the first dictation, sometimes ~1 in 5.
+        //
+        // The GPU is effectively private to the app and not contended by system
+        // ML, so decode never queues behind another process. For the default
+        // base.en model it's just as fast; larger models are marginally slower but
+        // never stall. `prefill` stays on CPU (its default).
+        let compute = ModelComputeOptions(
+            melCompute: .cpuAndGPU,
+            audioEncoderCompute: .cpuAndGPU,
+            textDecoderCompute: .cpuAndGPU,
+            prefillCompute: .cpuOnly
+        )
+        let config = WhisperKitConfig(model: whisperKitID, computeOptions: compute, verbose: false, prewarm: true, load: true)
         pipeline = try await WhisperKit(config)
         // Run one throwaway inference on silence so the first *real* dictation
         // doesn't pay the one-time Neural Engine graph-specialization cost

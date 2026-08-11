@@ -368,11 +368,10 @@ final class DictationEngine: ObservableObject {
                 let rawText = try await transcriber.transcribe(samples)
                 var cleaned = rawText
                 if doCleanup, !rawText.isEmpty {
-                    // Best-effort: if cleanup stalls (ANE contention) or runs long,
-                    // fall back to the raw transcript so dictation never hangs.
-                    cleaned = await withTimeout(seconds: 8, fallback: rawText) {
-                        await TextCleaner.clean(rawText, systemPrompt: sysPrompt, profile: style, context: appContext.promptContext)
-                    }
+                    // Best-effort: TextCleaner streams with its own inactivity
+                    // watchdog, so a stalled ANE falls back to the raw transcript
+                    // while a legitimately long dictation still cleans fully.
+                    cleaned = await TextCleaner.clean(rawText, systemPrompt: sysPrompt, profile: style, context: appContext.promptContext)
                 }
                 let finalText = cleaned
                 await MainActor.run {
@@ -396,26 +395,5 @@ final class DictationEngine: ObservableObject {
 
     private func log(_ message: String) {
         FileHandle.standardError.write(Data((message + "\n").utf8))
-    }
-}
-
-/// Run `operation`, but if it hasn't finished within `seconds`, abandon it and
-/// return `fallback`. Used so on-device cleanup (which runs on the ANE and can
-/// stall under system contention) can never hold up injecting the transcript.
-/// The losing child is cancelled; cleanup treats cancellation as a soft failure.
-func withTimeout<T: Sendable>(
-    seconds: Double,
-    fallback: T,
-    operation: @escaping @Sendable () async -> T
-) async -> T {
-    await withTaskGroup(of: T?.self) { group in
-        group.addTask { await operation() }
-        group.addTask {
-            try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-            return nil
-        }
-        let winner = await group.next() ?? nil
-        group.cancelAll()
-        return winner ?? fallback
     }
 }

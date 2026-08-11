@@ -111,18 +111,28 @@ struct SettingsView: View {
             }
 
             Section("Text cleanup") {
-                Toggle("Clean up dictated text (on-device AI)", isOn: $settings.cleanupEnabled)
-                    .onChange(of: settings.cleanupEnabled) { _, newValue in
-                        engine.setCleanup(newValue)
+                Toggle(isOn: $settings.cleanupEnabled) {
+                    HStack(spacing: 6) {
+                        Text("Clean up dictated text (on-device AI)")
+                        Text("BETA")
+                            .font(.caption2.weight(.bold))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Capsule().fill(Color.orange.opacity(0.2)))
+                            .foregroundStyle(.orange)
                     }
-                    .disabled(!TextCleaner.isSupported)
+                }
+                .onChange(of: settings.cleanupEnabled) { _, newValue in
+                    engine.setCleanup(newValue)
+                }
+                .disabled(!TextCleaner.isSupported)
 
                 if let reason = TextCleaner.unavailableReason {
                     Label(reason, systemImage: "exclamationmark.triangle")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
-                    Text("Runs Apple's on-device model after transcription: removes filler, fixes punctuation, formats spoken lists, and applies self-corrections. Nothing leaves your Mac. Adds about a second.")
+                    Text("Beta. Effectively removes filler words (um, uh, false starts) and fixes punctuation; can also format spoken lists and emails. Runs Apple's on-device model after transcription, so nothing leaves your Mac, but it uses noticeably more processing and adds a moment before text appears. When the Neural Engine is busy it can take longer.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

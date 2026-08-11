@@ -132,7 +132,7 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
-                    Text("Beta. Effectively removes filler words (um, uh, false starts) and fixes punctuation; can also format spoken lists and emails. Runs Apple's on-device model after transcription, so nothing leaves your Mac, but it uses noticeably more processing and adds a moment before text appears. When the Neural Engine is busy it can take longer.")
+                    Text("Beta. Removes filler words (um, uh, false starts), applies spoken self-corrections, and fixes punctuation. Runs Apple's on-device model after transcription, so nothing leaves your Mac, but it uses noticeably more processing and adds a moment before text appears. When the Neural Engine is busy it can take longer.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

@@ -18,6 +18,9 @@ final class DictationEngine: ObservableObject {
     @Published private(set) var status: Status = .loading
     @Published private(set) var currentModelID: String
     @Published private(set) var lastTranscript: String = ""
+    /// Live (and final) transcription progress from WhisperKit, for the main
+    /// window's progress panel. `nil` until the first dictation of the session.
+    @Published private(set) var progressInfo: TranscriptionProgressInfo?
     /// True once the accessibility-backed hotkey tap is live.
     @Published private(set) var hotkeyActive = false
     /// True while in hands-free (double-tap) dictation; press again to stop.
@@ -39,6 +42,8 @@ final class DictationEngine: ObservableObject {
     private var doneGlyph: Glyph
     private var glyphSize: CGFloat
     private var symbolColor: Color
+    private var pillColor: Color
+    private var pillPadding: CGFloat
 
     // AI text cleanup (Apple Foundation Models).
     private var cleanupEnabled: Bool
@@ -72,8 +77,10 @@ final class DictationEngine: ObservableObject {
         listeningGlyph: Glyph = .defaultListening,
         processingGlyph: Glyph = .defaultProcessing,
         doneGlyph: Glyph = .defaultDone,
-        glyphSize: CGFloat = GlyphSize.medium.points,
+        glyphSize: CGFloat = GlyphSize.medium,
         symbolColor: Color = RGBAColor.defaultSymbol.color,
+        pillColor: Color = RGBAColor.defaultPill.color,
+        pillPadding: CGFloat = 28,
         dumpWav: Bool = false,
         debugHotkey: Bool = false
     ) {
@@ -91,6 +98,8 @@ final class DictationEngine: ObservableObject {
         self.doneGlyph = doneGlyph
         self.glyphSize = glyphSize
         self.symbolColor = symbolColor
+        self.pillColor = pillColor
+        self.pillPadding = pillPadding
         self.dumpWav = dumpWav
         if showOverlay {
             self.overlay = makeOverlay()
@@ -101,7 +110,7 @@ final class DictationEngine: ObservableObject {
     private func makeOverlay() -> RecordingOverlay {
         let overlay = RecordingOverlay()
         overlay.setGlyphs(listening: listeningGlyph, processing: processingGlyph, done: doneGlyph)
-        overlay.setStyle(size: glyphSize, symbolColor: symbolColor)
+        overlay.setStyle(size: glyphSize, symbolColor: symbolColor, pillColor: pillColor, pillPadding: pillPadding)
         capture.onLevel = { level in overlay.pushLevel(level) }
         return overlay
     }
@@ -214,11 +223,13 @@ final class DictationEngine: ObservableObject {
         overlay?.setGlyphs(listening: listening, processing: processing, done: done)
     }
 
-    /// Update the overlay glyph size and SF Symbol tint live.
-    func setGlyphStyle(size: CGFloat, symbolColor: Color) {
+    /// Update the overlay glyph size, SF Symbol tint, and pill style live.
+    func setGlyphStyle(size: CGFloat, symbolColor: Color, pillColor: Color, pillPadding: CGFloat) {
         glyphSize = size
         self.symbolColor = symbolColor
-        overlay?.setStyle(size: size, symbolColor: symbolColor)
+        self.pillColor = pillColor
+        self.pillPadding = pillPadding
+        overlay?.setStyle(size: size, symbolColor: symbolColor, pillColor: pillColor, pillPadding: pillPadding)
     }
 
     /// Flash the overlay through all three stages so the user can preview their
@@ -352,10 +363,16 @@ final class DictationEngine: ObservableObject {
         }
         status = .transcribing
         overlay?.show(.transcribing)
+        progressInfo = TranscriptionProgressInfo()   // reset the panel for this run
 
         let transcriber = self.transcriber
         let style = writingStyle
         let sysPrompt = cleanupSystemPrompt
+        // Forward WhisperKit's live progress to the main-window panel. Called
+        // from a background thread, so hop to the main actor to publish.
+        let onProgress: @Sendable (TranscriptionProgressInfo) -> Void = { [weak self] info in
+            Task { @MainActor in self?.progressInfo = info }
+        }
         // Read the target (frontmost) app now, on the main actor, so cleanup can
         // adapt to it — and skip cleanup entirely in code/terminal apps.
         let appContext = AppContext.frontmost()
@@ -365,7 +382,7 @@ final class DictationEngine: ObservableObject {
         // off-main anyway, so only the final text-insert needs the main actor.
         Task.detached(priority: .userInitiated) {
             do {
-                let rawText = try await transcriber.transcribe(samples)
+                let rawText = try await transcriber.transcribe(samples, onProgress: onProgress)
                 var cleaned = rawText
                 if doCleanup, !rawText.isEmpty {
                     // Best-effort: TextCleaner streams with its own inactivity

@@ -15,6 +15,7 @@ struct HomeView: View {
             Divider()
             VStack(alignment: .leading, spacing: 16) {
                 if !DoctorReport.allOK(checks) { permissionBanner }
+                if let info = engine.progressInfo { progressPanel(info) }
                 testArea
                 recentsHeader
             }
@@ -25,6 +26,14 @@ struct HomeView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear { checks = DoctorReport.run() }
+        // Re-run the permission checks when the app regains focus (e.g. returning
+        // from System Settings after granting) or once the hotkey tap goes live,
+        // so the banner clears without needing a relaunch.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            checks = DoctorReport.run()
+        }
+        .onChange(of: engine.hotkeyActive) { _, _ in checks = DoctorReport.run() }
+        .onChange(of: engine.status) { _, _ in checks = DoctorReport.run() }
     }
 
     // MARK: - Header
@@ -32,7 +41,7 @@ struct HomeView: View {
     private var header: some View {
         HStack(spacing: 12) {
             statusIcon
-                .frame(width: 30)
+                .frame(width: 44)
             VStack(alignment: .leading, spacing: 2) {
                 Text(headline).font(.headline)
                 Text(subheadline).font(.caption).foregroundStyle(.secondary)
@@ -47,18 +56,13 @@ struct HomeView: View {
         .padding(.horizontal, 20).padding(.vertical, 14)
     }
 
-    // While recording, show the chosen listening glyph (emoji or SF Symbol);
-    // otherwise the status SF Symbol for the current state.
-    @ViewBuilder
+    // The app's brand mark (the ink-and-gold "a"), matching the Dock icon.
+    // The current state is conveyed by the headline/subheadline text.
     private var statusIcon: some View {
-        if case .recording = engine.status {
-            GlyphView(glyph: settings.listeningGlyph, size: 22, symbolColor: settings.symbolColor.color)
-        } else {
-            Image(systemName: symbol)
-                .font(.system(size: 22, weight: .medium))
-                .foregroundStyle(accent)
-                .symbolEffect(.pulse, isActive: isActive)
-        }
+        Image(nsImage: NSApp.applicationIconImage)
+            .resizable()
+            .interpolation(.high)
+            .frame(width: 42, height: 42)
     }
 
     // MARK: - Permission banner
@@ -117,6 +121,73 @@ struct HomeView: View {
         }
     }
 
+    // MARK: - Transcription progress panel
+
+    // Every field WhisperKit exposes during (and after) a transcription. Kept
+    // deliberately dense so real dictation lengths can be judged against it.
+    private func progressPanel(_ info: TranscriptionProgressInfo) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text("Transcription progress").font(.subheadline.weight(.semibold))
+                Text(info.isFinal ? "FINAL" : "LIVE")
+                    .font(.caption2.weight(.bold))
+                    .padding(.horizontal, 5).padding(.vertical, 1)
+                    .background(Capsule().fill((info.isFinal ? Color.green : Color.orange).opacity(0.2)))
+                    .foregroundStyle(info.isFinal ? Color.green : Color.orange)
+                Spacer()
+                Text("\(Int((min(max(info.fractionCompleted, 0), 1)) * 100))%")
+                    .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+            }
+
+            ProgressView(value: min(max(info.fractionCompleted, 0), 1))
+
+            Text(info.totalSeconds > 0
+                 ? String(format: "%.0fs / %.0fs audio seeked · updates per 30s window",
+                          info.completedSeconds, info.totalSeconds)
+                 : "audio seek: n/a")
+                .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: 3), spacing: 6) {
+                metric("Window", "\(info.windowId)")
+                metric("Tokens", "\(info.tokenCount)")
+                metric("Elapsed", String(format: "%.2fs", info.elapsed))
+                metric("Temperature", fmtF(info.temperature))
+                metric("Avg logprob", fmtF(info.avgLogprob))
+                metric("Compression", fmtF(info.compressionRatio))
+                if info.isFinal {
+                    metric("Tokens/sec", fmtD(info.tokensPerSecond))
+                    metric("Real-time ×", fmtD(info.realTimeFactor))
+                    metric("Pipeline", fmtSecs(info.fullPipelineSeconds))
+                    metric("Input audio", fmtSecs(info.inputAudioSeconds))
+                    metric("Decode loops", fmtInt(info.totalDecodingLoops))
+                }
+            }
+
+            if !info.text.isEmpty {
+                Text(info.text)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(12)
+        .background(Color(nsColor: .textBackgroundColor).opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.quaternary))
+    }
+
+    private func metric(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(label).font(.caption2).foregroundStyle(.tertiary)
+            Text(value).font(.caption.monospacedDigit())
+        }
+    }
+
+    private func fmtF(_ v: Float?) -> String { v.map { String(format: "%.3f", $0) } ?? "—" }
+    private func fmtD(_ v: Double?) -> String { v.map { String(format: "%.2f", $0) } ?? "—" }
+    private func fmtSecs(_ v: Double?) -> String { v.map { String(format: "%.2fs", $0) } ?? "—" }
+    private func fmtInt(_ v: Double?) -> String { v.map { String(Int($0)) } ?? "—" }
+
     // MARK: - Recents
 
     private var recentsHeader: some View {
@@ -157,32 +228,6 @@ struct HomeView: View {
     }
 
     // MARK: - Status mapping
-
-    private var isActive: Bool {
-        switch engine.status {
-        case .recording, .transcribing, .loading: return true
-        default: return false
-        }
-    }
-
-    private var accent: Color {
-        switch engine.status {
-        case .recording: return .red
-        case .transcribing, .loading: return .orange
-        case .error: return .red
-        case .idle: return settings.symbolColor.color   // match the overlay color chosen in Settings
-        }
-    }
-
-    private var symbol: String {
-        switch engine.status {
-        case .recording: return "waveform"
-        case .transcribing: return "ellipsis"
-        case .loading: return "arrow.down.circle"
-        case .error: return "exclamationmark.triangle.fill"
-        case .idle: return "mic.fill"
-        }
-    }
 
     private var headline: String {
         if engine.isLocked { return "Listening (hands-free)" }

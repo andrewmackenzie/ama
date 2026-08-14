@@ -32,26 +32,19 @@ struct RGBAColor: Equatable {
 
     // A mid blue that reads on both light and dark wallpapers by default.
     static let defaultSymbol = RGBAColor(red: 0.36, green: 0.55, blue: 1.0, alpha: 1.0)
+    // The pill behind the glyph: black at 75% opacity, reads on any wallpaper.
+    static let defaultPill = RGBAColor(red: 0, green: 0, blue: 0, alpha: 0.75)
 }
 
-/// Overlay glyph size, applied to both emoji and SF Symbols.
-enum GlyphSize: String, CaseIterable, Identifiable {
-    case small, medium, large
-    var id: String { rawValue }
-    var label: String {
-        switch self {
-        case .small: return "S"
-        case .medium: return "M"
-        case .large: return "L"
-        }
-    }
-    var points: CGFloat {
-        switch self {
-        case .small: return 32
-        case .medium: return 44
-        case .large: return 58
-        }
-    }
+/// Overlay glyph size, applied to both emoji and SF Symbols. Retained for the
+/// default (M) and the slider's bounds; the size itself is now a continuous
+/// point value stored in `Settings.glyphPointSize`.
+enum GlyphSize {
+    static let small: CGFloat = 32
+    static let medium: CGFloat = 44
+    static let large: CGFloat = 58
+    static let minPoints: CGFloat = 24
+    static let maxPoints: CGFloat = 76
 }
 
 /// One overlay symbol: either an emoji or a named SF Symbol. Persisted as a
@@ -80,7 +73,20 @@ struct Glyph: Equatable {
 
     static let defaultListening = Glyph(kind: .symbol, value: "microphone.and.signal.meter.fill")
     static let defaultProcessing = Glyph(kind: .symbol, value: "progress.indicator")
-    static let defaultDone = Glyph(kind: .symbol, value: "checkmark")
+    static let defaultDone = Glyph(kind: .symbol, value: "checkmark.circle.fill")
+}
+
+/// The two starting points offered at the top of Overlay settings. Picking one
+/// stamps all three stage glyphs at once; Advanced then lets you override any of
+/// them individually.
+enum OverlayPreset: String, CaseIterable, Identifiable {
+    case symbol, emoji
+    var id: String { rawValue }
+    var label: String { self == .emoji ? "Emoji" : "SF Symbols" }
+
+    var listening: Glyph { self == .emoji ? Glyph(kind: .emoji, value: "👂") : .defaultListening }
+    var processing: Glyph { self == .emoji ? Glyph(kind: .emoji, value: "🤔") : .defaultProcessing }
+    var done: Glyph { self == .emoji ? Glyph(kind: .emoji, value: "👍") : .defaultDone }
 }
 
 /// User preferences, persisted to `UserDefaults`. Single source of truth for
@@ -104,11 +110,14 @@ final class Settings: ObservableObject {
         static let writingStyle = "writingStyle"
         static let cleanupSystemPrompt = "cleanupSystemPrompt"
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
+        static let overlayPreset = "overlayPreset"
         static let listeningGlyph = "listeningGlyph"
         static let processingGlyph = "processingGlyph"
         static let doneGlyph = "doneGlyph"
-        static let glyphSize = "glyphSize"
+        static let glyphPointSize = "glyphPointSize"
         static let symbolColor = "symbolColor"
+        static let pillColor = "pillColor"
+        static let pillPadding = "pillPadding"
     }
 
     init(defaults: UserDefaults = UserDefaults(suiteName: Settings.suiteName) ?? .standard) {
@@ -125,11 +134,14 @@ final class Settings: ObservableObject {
             Key.writingStyle: TextCleaner.defaultProfile,
             Key.cleanupSystemPrompt: TextCleaner.defaultSystemPrompt,
             Key.hasCompletedOnboarding: false,
+            Key.overlayPreset: OverlayPreset.symbol.rawValue,
             Key.listeningGlyph: Glyph.defaultListening.storage,
             Key.processingGlyph: Glyph.defaultProcessing.storage,
             Key.doneGlyph: Glyph.defaultDone.storage,
-            Key.glyphSize: GlyphSize.medium.rawValue,
+            Key.glyphPointSize: Double(GlyphSize.medium),
             Key.symbolColor: RGBAColor.defaultSymbol.storage,
+            Key.pillColor: RGBAColor.defaultPill.storage,
+            Key.pillPadding: Double(28),
         ])
     }
 
@@ -203,14 +215,29 @@ final class Settings: ObservableObject {
         set { objectWillChange.send(); defaults.set(newValue.storage, forKey: Key.doneGlyph) }
     }
 
-    var glyphSize: GlyphSize {
-        get { GlyphSize(rawValue: defaults.string(forKey: Key.glyphSize) ?? "") ?? .medium }
-        set { objectWillChange.send(); defaults.set(newValue.rawValue, forKey: Key.glyphSize) }
+    var overlayPreset: OverlayPreset {
+        get { OverlayPreset(rawValue: defaults.string(forKey: Key.overlayPreset) ?? "") ?? .symbol }
+        set { objectWillChange.send(); defaults.set(newValue.rawValue, forKey: Key.overlayPreset) }
+    }
+
+    var glyphPointSize: Double {
+        get { let v = defaults.double(forKey: Key.glyphPointSize); return v > 0 ? v : Double(GlyphSize.medium) }
+        set { objectWillChange.send(); defaults.set(newValue, forKey: Key.glyphPointSize) }
     }
 
     var symbolColor: RGBAColor {
         get { RGBAColor(storage: defaults.string(forKey: Key.symbolColor) ?? "") ?? .defaultSymbol }
         set { objectWillChange.send(); defaults.set(newValue.storage, forKey: Key.symbolColor) }
+    }
+
+    var pillColor: RGBAColor {
+        get { RGBAColor(storage: defaults.string(forKey: Key.pillColor) ?? "") ?? .defaultPill }
+        set { objectWillChange.send(); defaults.set(newValue.storage, forKey: Key.pillColor) }
+    }
+
+    var pillPadding: Double {
+        get { let v = defaults.double(forKey: Key.pillPadding); return v > 0 ? v : 28 }
+        set { objectWillChange.send(); defaults.set(newValue, forKey: Key.pillPadding) }
     }
 }
 

@@ -34,54 +34,80 @@ struct SettingsView: View {
             }
 
             Section("Overlay symbols") {
-                Text("Pick an emoji or SF Symbol shown for each stage of the recording overlay. For emoji, type or paste one, or press ⌃⌘Space for the macOS emoji picker.")
+                Text("Choose what the recording overlay shows for each stage. Emoji uses 👂 🤔 👍; SF Symbols uses tinted glyphs. Open Advanced to customize each stage, the size, and the pill.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                GlyphRow(title: "Listening", glyph: $settings.listeningGlyph,
-                         symbolColor: settings.symbolColor.color,
-                         emojiSuggestions: GlyphSuggestions.listeningEmoji,
-                         symbolSuggestions: GlyphSuggestions.listeningSymbols)
-                    .onChange(of: settings.listeningGlyph) { _, _ in pushGlyphs() }
-                GlyphRow(title: "Processing", glyph: $settings.processingGlyph,
-                         symbolColor: settings.symbolColor.color,
-                         emojiSuggestions: GlyphSuggestions.processingEmoji,
-                         symbolSuggestions: GlyphSuggestions.processingSymbols)
-                    .onChange(of: settings.processingGlyph) { _, _ in pushGlyphs() }
-                GlyphRow(title: "Done", glyph: $settings.doneGlyph,
-                         symbolColor: settings.symbolColor.color,
-                         emojiSuggestions: GlyphSuggestions.doneEmoji,
-                         symbolSuggestions: GlyphSuggestions.doneSymbols)
-                    .onChange(of: settings.doneGlyph) { _, _ in pushGlyphs() }
-
-                Picker("Size", selection: $settings.glyphSize) {
-                    ForEach(GlyphSize.allCases) { size in
-                        Text(size.label).tag(size)
+                Picker("Style", selection: overlayPresetBinding) {
+                    ForEach(OverlayPreset.allCases) { preset in
+                        Text(preset.label).tag(preset)
                     }
                 }
                 .pickerStyle(.segmented)
-                .frame(maxWidth: 240)
-                .onChange(of: settings.glyphSize) { _, _ in pushStyle() }
+                .frame(maxWidth: 260)
 
-                ColorPicker(selection: symbolColorBinding, supportsOpacity: true) {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("SF Symbol color")
-                        Text("Emoji keep their own colors.")
+                DisclosureGroup("Advanced") {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text("Pick an emoji or SF Symbol for each stage. For emoji, type or paste one, or press ⌃⌘Space for the macOS emoji picker.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+
+                        GlyphRow(title: "Listening", glyph: $settings.listeningGlyph,
+                                 symbolColor: settings.symbolColor.color,
+                                 emojiSuggestions: GlyphSuggestions.listeningEmoji,
+                                 symbolSuggestions: GlyphSuggestions.listeningSymbols)
+                            .onChange(of: settings.listeningGlyph) { _, _ in pushGlyphs() }
+                        GlyphRow(title: "Processing", glyph: $settings.processingGlyph,
+                                 symbolColor: settings.symbolColor.color,
+                                 emojiSuggestions: GlyphSuggestions.processingEmoji,
+                                 symbolSuggestions: GlyphSuggestions.processingSymbols)
+                            .onChange(of: settings.processingGlyph) { _, _ in pushGlyphs() }
+                        GlyphRow(title: "Done", glyph: $settings.doneGlyph,
+                                 symbolColor: settings.symbolColor.color,
+                                 emojiSuggestions: GlyphSuggestions.doneEmoji,
+                                 symbolSuggestions: GlyphSuggestions.doneSymbols)
+                            .onChange(of: settings.doneGlyph) { _, _ in pushGlyphs() }
+
+                        SliderRow(title: "Glyph size", value: $settings.glyphPointSize,
+                                  range: Double(GlyphSize.minPoints)...Double(GlyphSize.maxPoints))
+                            .onChange(of: settings.glyphPointSize) { _, _ in pushStyle() }
+                        SliderRow(title: "Pill size", value: $settings.pillPadding, range: 8...72)
+                            .onChange(of: settings.pillPadding) { _, _ in pushStyle() }
+
+                        ColorPicker(selection: symbolColorBinding, supportsOpacity: true) {
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("SF Symbol color")
+                                Text("Emoji keep their own colors.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        ColorPicker(selection: pillColorBinding, supportsOpacity: true) {
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("Pill color")
+                                Text("The rounded background behind the glyph. Lower the opacity for a see-through pill.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                     }
+                    .padding(.top, 6)
                 }
+                .font(.callout.weight(.semibold))
 
                 HStack {
                     Button("Preview in overlay") { engine.previewGlyphs() }
                         .disabled(!settings.showOverlay)
                     Spacer()
                     Button("Reset to defaults") {
+                        settings.overlayPreset = .symbol
                         settings.listeningGlyph = .defaultListening
                         settings.processingGlyph = .defaultProcessing
                         settings.doneGlyph = .defaultDone
-                        settings.glyphSize = .medium
+                        settings.glyphPointSize = Double(GlyphSize.medium)
                         settings.symbolColor = .defaultSymbol
+                        settings.pillColor = .defaultPill
+                        settings.pillPadding = 28
                         pushGlyphs()
                         pushStyle()
                     }
@@ -216,15 +242,61 @@ struct SettingsView: View {
     }
 
     private func pushStyle() {
-        engine.setGlyphStyle(size: settings.glyphSize.points, symbolColor: settings.symbolColor.color)
+        engine.setGlyphStyle(
+            size: CGFloat(settings.glyphPointSize),
+            symbolColor: settings.symbolColor.color,
+            pillColor: settings.pillColor.color,
+            pillPadding: CGFloat(settings.pillPadding)
+        )
     }
 
-    // Bridge the persisted RGBAColor to ColorPicker's Color, pushing live updates.
+    // Selecting a preset stamps all three stage glyphs; Advanced can then override.
+    private var overlayPresetBinding: Binding<OverlayPreset> {
+        Binding(
+            get: { settings.overlayPreset },
+            set: { preset in
+                settings.overlayPreset = preset
+                settings.listeningGlyph = preset.listening
+                settings.processingGlyph = preset.processing
+                settings.doneGlyph = preset.done
+                pushGlyphs()
+            }
+        )
+    }
+
+    // Bridge the persisted RGBAColors to ColorPicker's Color, pushing live updates.
     private var symbolColorBinding: Binding<Color> {
         Binding(
             get: { settings.symbolColor.color },
             set: { settings.symbolColor = RGBAColor($0); pushStyle() }
         )
+    }
+
+    private var pillColorBinding: Binding<Color> {
+        Binding(
+            get: { settings.pillColor.color },
+            set: { settings.pillColor = RGBAColor($0); pushStyle() }
+        )
+    }
+}
+
+/// A labeled slider with a live point-value readout, used for glyph and pill size.
+private struct SliderRow: View {
+    let title: String
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text(title).fontWeight(.medium)
+                Spacer()
+                Text("\(Int(value.rounded())) pt")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: $value, in: range)
+        }
     }
 }
 
@@ -257,37 +329,39 @@ private struct GlyphRow: View {
             }
 
             HStack(spacing: 8) {
-                if glyph.kind == .emoji {
-                    TextField("Emoji", text: valueBinding)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 84)
+                // Empty title + labelsHidden so the Form doesn't attach a label
+                // that bumps the field onto its own row; the hint lives in the
+                // prompt instead, keeping the field in line with the chips.
+                TextField("", text: valueBinding, prompt: Text(placeholder))
+                    .textFieldStyle(.roundedBorder)
+                    .labelsHidden()
+                    .frame(width: glyph.kind == .emoji ? 84 : 210)
 
-                    ForEach(emojiSuggestions, id: \.self) { e in
-                        Button(e) { glyph = Glyph(kind: .emoji, value: e) }
-                            .buttonStyle(.plain)
-                            .font(.system(size: 20))
-                    }
-                    Spacer(minLength: 0)
-                } else {
-                    TextField("SF Symbol name", text: valueBinding)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(maxWidth: 220)
-                    Menu {
-                        ForEach(symbolSuggestions, id: \.self) { s in
-                            Button { glyph = Glyph(kind: .symbol, value: s) } label: {
-                                Label(s, systemImage: s)
-                            }
-                        }
+                Spacer(minLength: 8)
+
+                // Tappable quick-picks, right-aligned. Identical layout for emoji
+                // and SF Symbols: a row of the glyphs themselves. SF Symbols hover
+                // to reveal their name since it isn't spelled out.
+                ForEach(suggestions, id: \.self) { s in
+                    Button {
+                        glyph = Glyph(kind: glyph.kind, value: s)
                     } label: {
-                        Label("Suggestions", systemImage: "sparkles")
+                        GlyphView(glyph: Glyph(kind: glyph.kind, value: s), size: 20, symbolColor: .primary)
+                            .frame(width: 24, height: 24)
                     }
-                    .fixedSize()
-                    Spacer(minLength: 0)
+                    .buttonStyle(.plain)
+                    .help(glyph.kind == .symbol ? s : "")
                 }
             }
             .padding(.leading, entryIndent)
         }
         .padding(.vertical, 4)
+    }
+
+    private var placeholder: String { glyph.kind == .emoji ? "Emoji" : "SF Symbol name" }
+
+    private var suggestions: [String] {
+        glyph.kind == .emoji ? emojiSuggestions : symbolSuggestions
     }
 
     private var kindBinding: Binding<Glyph.Kind> {

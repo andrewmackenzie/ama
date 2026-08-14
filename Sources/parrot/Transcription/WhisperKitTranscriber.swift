@@ -57,12 +57,54 @@ actor WhisperKitTranscriber: Transcriber {
         FileHandle.standardError.write(Data("✓ \(model.id) ready\n".utf8))
     }
 
-    func transcribe(_ audio: [Float]) async throws -> String {
+    func transcribe(_ audio: [Float], onProgress: (@Sendable (TranscriptionProgressInfo) -> Void)? = nil) async throws -> String {
         if pipeline == nil { try await warmUp() }
         guard let pipeline else { throw TranscriberError.notLoaded }
 
-        let results = try await pipeline.transcribe(audioArray: audio)
+        // The pipeline's Foundation Progress reports fractional (audio-seek)
+        // progress; the per-window callback reports decode state + partial text.
+        let prog = pipeline.progress
+        let start = Date()
+        let callback: TranscriptionCallback = onProgress.map { report in
+            { p in
+                var info = TranscriptionProgressInfo()
+                info.fractionCompleted = prog.fractionCompleted
+                info.completedSeconds = Double(prog.completedUnitCount)
+                info.totalSeconds = Double(prog.totalUnitCount)
+                info.windowId = p.windowId
+                info.tokenCount = p.tokens.count
+                info.text = p.text
+                info.temperature = p.temperature
+                info.avgLogprob = p.avgLogprob
+                info.compressionRatio = p.compressionRatio
+                info.elapsed = Date().timeIntervalSince(start)
+                report(info)
+                return nil   // nil = keep going
+            }
+        }
+
+        let results = try await pipeline.transcribe(audioArray: audio, callback: callback)
         let raw = results.map(\.text).joined(separator: " ")
+
+        // Final snapshot with the full timing summary from the result.
+        if let report = onProgress {
+            var info = TranscriptionProgressInfo()
+            info.isFinal = true
+            info.fractionCompleted = 1
+            info.completedSeconds = Double(prog.completedUnitCount)
+            info.totalSeconds = Double(prog.totalUnitCount)
+            info.text = raw
+            info.tokenCount = results.reduce(0) { $0 + $1.segments.reduce(0) { $0 + $1.tokens.count } }
+            info.elapsed = Date().timeIntervalSince(start)
+            if let t = results.last?.timings {
+                info.tokensPerSecond = t.tokensPerSecond
+                info.realTimeFactor = t.realTimeFactor
+                info.fullPipelineSeconds = t.fullPipeline
+                info.inputAudioSeconds = t.inputAudioSeconds
+                info.totalDecodingLoops = t.totalDecodingLoops
+            }
+            report(info)
+        }
         return Self.sanitize(raw)
     }
 

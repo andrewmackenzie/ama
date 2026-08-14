@@ -36,7 +36,7 @@ final class RecordingOverlay {
         }
     }
 
-    /// Flash 👍 briefly, then fade out. Called when processing finished cleanly.
+    /// Flash the done glyph briefly, then fade out. Called when processing finished cleanly.
     func finish() {
         ensureWindow()
         guard let window else { return }
@@ -45,7 +45,7 @@ final class RecordingOverlay {
             window.orderFrontRegardless()
         }
         model.state = .done
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             guard let self else { return }
             if self.model.state == .done { self.hide() }
         }
@@ -79,16 +79,20 @@ final class RecordingOverlay {
         model.done = done
     }
 
-    /// Set the glyph point size and the SF Symbol tint (emoji ignore the tint).
-    func setStyle(size: CGFloat, symbolColor: Color) {
+    /// Set the glyph point size, the SF Symbol tint (emoji ignore the tint), and
+    /// the pill behind the glyph (its color/opacity and how far it extends past
+    /// the glyph).
+    func setStyle(size: CGFloat, symbolColor: Color, pillColor: Color, pillPadding: CGFloat) {
         model.size = size
         model.symbolColor = symbolColor
+        model.pillColor = pillColor
+        model.pillPadding = pillPadding
     }
 
     private func ensureWindow() {
         if window != nil { return }
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 160, height: 96),
+            contentRect: NSRect(x: 0, y: 0, width: 180, height: 180),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -127,8 +131,10 @@ final class OverlayModel: ObservableObject {
     @Published var listening = Glyph.defaultListening
     @Published var processing = Glyph.defaultProcessing
     @Published var done = Glyph.defaultDone
-    @Published var size: CGFloat = GlyphSize.medium.points
+    @Published var size: CGFloat = GlyphSize.medium
     @Published var symbolColor: Color = RGBAColor.defaultSymbol.color
+    @Published var pillColor: Color = RGBAColor.defaultPill.color
+    @Published var pillPadding: CGFloat = 28
     /// Smoothed mic level (0…1), for variable-value SF Symbols while recording.
     @Published var level: CGFloat = 0
     private var smooth: Float = 0
@@ -178,13 +184,14 @@ private struct OverlayEmoji: View {
 
     var body: some View {
         ZStack {
-            // Dark circular backing so the glyph reads on any wallpaper.
+            // Pill backing so the glyph reads on any wallpaper. Color, opacity,
+            // and how far it extends past the glyph are all user-adjustable.
             Circle()
-                .fill(Color.black.opacity(0.75))
-                .frame(width: model.size + 28, height: model.size + 28)
+                .fill(model.pillColor)
+                .frame(width: model.size + model.pillPadding, height: model.size + model.pillPadding)
             content
         }
-        .frame(width: 160, height: 96)
+        .frame(width: 180, height: 180)
         .scaleEffect(model.state == .hidden ? 0.4 : 1)
         .opacity(model.state == .hidden ? 0 : 1)
         .animation(.timingCurve(0.16, 1, 0.3, 1, duration: 0.24), value: model.state)

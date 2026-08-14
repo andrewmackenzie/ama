@@ -47,8 +47,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             listeningGlyph: settings.listeningGlyph,
             processingGlyph: settings.processingGlyph,
             doneGlyph: settings.doneGlyph,
-            glyphSize: settings.glyphSize.points,
-            symbolColor: settings.symbolColor.color
+            glyphSize: CGFloat(settings.glyphPointSize),
+            symbolColor: settings.symbolColor.color,
+            pillColor: settings.pillColor.color,
+            pillPadding: CGFloat(settings.pillPadding)
         )
         engine.start()
 

@@ -1,13 +1,12 @@
 import AppKit
 import ArgumentParser
 import Foundation
-import WhisperKit
 
 struct Ama: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "ama",
         abstract: "Minimal macOS dictation daemon. Hold Fn, speak, release.",
-        subcommands: [Run.self, Setup.self, Doctor.self, Models.self, Install.self],
+        subcommands: [Run.self, Setup.self, Doctor.self, Install.self],
         defaultSubcommand: Run.self
     )
 }
@@ -30,9 +29,6 @@ struct Run: ParsableCommand {
     @Flag(name: .long, help: "Disable the on-screen recording overlay.")
     var noOverlay: Bool = false
 
-    @Option(name: .long, help: "Model id to use. Defaults to the recommended model.")
-    var model: String?
-
     func run() throws {
         if !skipDoctor {
             let checks = DoctorReport.run()
@@ -44,29 +40,12 @@ struct Run: ParsableCommand {
             }
         }
 
-        let chosenModel: TranscriptionModel
-        if let id = model {
-            guard let m = ModelRegistry.find(id) else {
-                FileHandle.standardError.write(Data("unknown model: \(id)\n".utf8))
-                FileHandle.standardError.write(Data("run `ama models list` to see options.\n".utf8))
-                throw ExitCode(1)
-            }
-            chosenModel = m
-        } else {
-            guard let m = ModelRegistry.recommended() else {
-                FileHandle.standardError.write(Data("no models registered\n".utf8))
-                throw ExitCode(1)
-            }
-            chosenModel = m
-        }
-
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
 
         // Headless daemon: same engine the GUI uses, no window, no history.
         let engine = MainActor.assumeIsolated {
             DictationEngine(
-                model: chosenModel,
                 hotkey: .fn,
                 showOverlay: !noOverlay,
                 history: nil,
@@ -85,7 +64,7 @@ struct Run: ParsableCommand {
         sigint.resume()
         signal(SIGINT, SIG_IGN)
 
-        FileHandle.standardError.write(Data("listening on fn hold · model: \(chosenModel.id) · ^C to quit\n".utf8))
+        FileHandle.standardError.write(Data("listening on fn hold · Apple Speech · ^C to quit\n".utf8))
         app.run()
     }
 }
@@ -104,43 +83,3 @@ struct Doctor: ParsableCommand {
     }
 }
 
-struct Models: ParsableCommand {
-    static let configuration = CommandConfiguration(
-        abstract: "Manage transcription models.",
-        subcommands: [List.self, Download.self]
-    )
-
-    struct List: ParsableCommand {
-        func run() throws {
-            for m in ModelRegistry.shared {
-                let star = m.recommended ? "★" : " "
-                let id = m.id.padding(toLength: 26, withPad: " ", startingAt: 0)
-                let langs = "[\(m.languages.joined(separator: ","))]"
-                    .padding(toLength: 9, withPad: " ", startingAt: 0)
-                let size = String(format: "%5d MB", m.sizeMB)
-                print("\(star) \(id) \(size)  \(langs)  \(m.displayName)")
-            }
-        }
-    }
-
-    struct Download: ParsableCommand {
-        @Argument(help: "Model id to download.") var id: String
-
-        func run() throws {
-            guard let m = ModelRegistry.find(id) else {
-                print("unknown model: \(id)")
-                throw ExitCode(1)
-            }
-            let t = WhisperKitTranscriber(model: m)
-
-            let sem = DispatchSemaphore(value: 0)
-            var capturedError: Error?
-            Task.detached {
-                do { try await t.warmUp() } catch { capturedError = error }
-                sem.signal()
-            }
-            sem.wait()
-            if let e = capturedError { throw e }
-        }
-    }
-}

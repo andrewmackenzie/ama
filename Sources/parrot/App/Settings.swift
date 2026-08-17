@@ -99,7 +99,6 @@ final class Settings: ObservableObject {
     nonisolated static let suiteName = "com.capstannetworks.ama"
 
     private enum Key {
-        static let modelID = "modelID"
         static let hotkey = "hotkey"
         static let doubleTapLock = "doubleTapLock"
         static let showOverlay = "showOverlay"
@@ -123,7 +122,6 @@ final class Settings: ObservableObject {
     init(defaults: UserDefaults = UserDefaults(suiteName: Settings.suiteName) ?? .standard) {
         self.defaults = defaults
         defaults.register(defaults: [
-            Key.modelID: ModelRegistry.recommended()?.id ?? "whisper-base.en",
             Key.hotkey: Hotkey.fn.rawValue,
             Key.doubleTapLock: true,
             Key.showOverlay: true,
@@ -143,11 +141,6 @@ final class Settings: ObservableObject {
             Key.pillColor: RGBAColor.defaultPill.storage,
             Key.pillPadding: Double(28),
         ])
-    }
-
-    var modelID: String {
-        get { defaults.string(forKey: Key.modelID) ?? "whisper-base.en" }
-        set { objectWillChange.send(); defaults.set(newValue, forKey: Key.modelID) }
     }
 
     var hotkey: Hotkey {

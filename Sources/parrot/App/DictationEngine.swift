@@ -18,7 +18,7 @@ final class DictationEngine: ObservableObject {
     @Published private(set) var status: Status = .loading
     @Published private(set) var currentModelID: String
     @Published private(set) var lastTranscript: String = ""
-    /// Live (and final) transcription progress from WhisperKit, for the main
+    /// Live (and final) transcription progress from the engine, for the main
     /// window's progress panel. `nil` until the first dictation of the session.
     @Published private(set) var progressInfo: TranscriptionProgressInfo?
     /// True once the accessibility-backed hotkey tap is live.
@@ -28,7 +28,7 @@ final class DictationEngine: ObservableObject {
 
     private let monitor: HotkeyMonitor
     private let capture = AudioCapture()
-    private var transcriber: WhisperKitTranscriber
+    private let transcriber: any Transcriber
     private var overlay: RecordingOverlay?
     private var history: History?
 
@@ -66,7 +66,6 @@ final class DictationEngine: ObservableObject {
     private var ignoreNextRelease = false
 
     init(
-        model: TranscriptionModel,
         hotkey: Hotkey,
         showOverlay: Bool,
         history: History? = nil,
@@ -84,8 +83,9 @@ final class DictationEngine: ObservableObject {
         dumpWav: Bool = false,
         debugHotkey: Bool = false
     ) {
-        self.currentModelID = model.id
-        self.transcriber = WhisperKitTranscriber(model: model)
+        let transcriber = AppleSpeechTranscriber()
+        self.currentModelID = transcriber.modelID
+        self.transcriber = transcriber
         self.monitor = HotkeyMonitor(hotkey: hotkey, debug: debugHotkey)
         self.overlayEnabled = showOverlay
         self.history = history
@@ -241,15 +241,6 @@ final class DictationEngine: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) { overlay.finish() }
     }
 
-    /// Switch to a different model: swap the transcriber and warm it up.
-    func reload(model: TranscriptionModel) {
-        currentModelID = model.id
-        transcriber = WhisperKitTranscriber(model: model)
-        modelReady = false
-        status = .loading
-        warmUpModel()
-    }
-
     // MARK: - Hotkey gestures
     //
     // Gestures on the push-to-talk key:
@@ -368,7 +359,7 @@ final class DictationEngine: ObservableObject {
         let transcriber = self.transcriber
         let style = writingStyle
         let sysPrompt = cleanupSystemPrompt
-        // Forward WhisperKit's live progress to the main-window panel. Called
+        // Forward the engine's live progress to the main-window panel. Called
         // from a background thread, so hop to the main actor to publish.
         let onProgress: @Sendable (TranscriptionProgressInfo) -> Void = { [weak self] info in
             Task { @MainActor in self?.progressInfo = info }

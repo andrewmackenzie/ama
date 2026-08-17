@@ -108,12 +108,10 @@ final class UpdateChecker: ObservableObject {
     }
 }
 
-/// The green "Update available" pill for the window title bar. Shows for either
-/// an app update (downloads the pkg) or a model update (re-downloads the model),
-/// preferring the app update. Empty (zero size) when there's nothing to update.
+/// The green "Update available" pill for the window title bar. Shows when an app
+/// update is available (downloads the pkg). Empty (zero size) otherwise.
 struct UpdatePillView: View {
     @ObservedObject var appChecker: UpdateChecker
-    @ObservedObject var models: ModelManager
 
     /// Fixed size in both states. The title-bar hosting view is a fixed frame;
     /// letting the content collapse to 0×0 when there's no update creates a
@@ -131,14 +129,6 @@ struct UpdatePillView: View {
                 busy: appChecker.isDownloading,
                 help: "Ama \(update.shortVersion) is available — click to download and install",
                 action: { appChecker.downloadAndOpen() }
-            )
-        } else if let model = models.updatableModel {
-            let busy = models.downloadingID == model.id
-            pill(
-                label: busy ? "Updating model…" : "Model update",
-                busy: busy,
-                help: "A newer build of \(model.displayName) is available — click to update",
-                action: { Task { try? await models.download(model) } }
             )
         } else {
             Color.clear

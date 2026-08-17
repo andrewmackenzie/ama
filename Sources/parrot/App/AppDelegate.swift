@@ -21,7 +21,6 @@ func launchGUI() {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = Settings()
     private let history = History()
-    private let models = ModelManager()
     private var engine: DictationEngine!
     private var window: NSWindow!
     private var aboutWindow: NSWindow?
@@ -34,9 +33,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         history.setLimit(settings.historyLimit)
 
-        let model = ModelRegistry.find(settings.modelID) ?? ModelRegistry.recommended()!
         engine = DictationEngine(
-            model: model,
             hotkey: settings.hotkey,
             showOverlay: settings.showOverlay,
             history: settings.keepHistory ? history : nil,
@@ -74,7 +71,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         updateChecker.start()
-        Task { await models.checkForUpdates() }
 
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -96,7 +92,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .environmentObject(engine)
             .environmentObject(settings)
             .environmentObject(history)
-            .environmentObject(models)
 
         // Use an NSHostingView as the window's contentView (rather than a
         // hosting *controller*) so SwiftUI's ideal content size never drives the
@@ -124,7 +119,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Green "Update available" pill at the trailing edge of the title bar.
         let pill = NSTitlebarAccessoryViewController()
         pill.layoutAttribute = .right
-        let pillHost = NSHostingView(rootView: UpdatePillView(appChecker: updateChecker, models: models))
+        let pillHost = NSHostingView(rootView: UpdatePillView(appChecker: updateChecker))
         pillHost.frame = NSRect(x: 0, y: 0, width: 168, height: 28)
         pill.view = pillHost
         window.addTitlebarAccessoryViewController(pill)
@@ -165,7 +160,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// title-bar pill, not a dialog.
     @objc private func checkForUpdates() {
         Task { await updateChecker.check() }
-        Task { await models.checkForUpdates() }
     }
 
     /// Menu action (Ama ▸ Settings…, ⌘,).
@@ -182,7 +176,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 .environmentObject(engine)
                 .environmentObject(settings)
                 .environmentObject(history)
-                .environmentObject(models)
             let w = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 720, height: 560),
                 styleMask: [.titled, .closable, .miniaturizable, .resizable],

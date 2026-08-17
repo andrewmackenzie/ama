@@ -35,7 +35,7 @@ struct AboutView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text("© 2026 Capstan Networks LLC · MIT licensed. Built on the open-source parrot by Andrew Jones. Transcription by WhisperKit on the Apple Neural Engine.")
+            Text("© 2026 Capstan Networks LLC · MIT licensed. Built on the open-source parrot by Andrew Jones. On-device transcription by Apple Speech.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

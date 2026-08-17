@@ -7,7 +7,7 @@ extension Notification.Name {
 }
 
 enum PrefTab: Hashable {
-    case settings, models, permissions
+    case settings, permissions
 }
 
 /// Drives which tab the Settings window shows. Held by the AppDelegate so it can
@@ -27,7 +27,6 @@ struct PreferencesView: View {
         NavigationSplitView {
             List(selection: $router.tab) {
                 Label("Settings", systemImage: "gearshape").tag(PrefTab.settings)
-                Label("Models", systemImage: "cube.box").tag(PrefTab.models)
                 Label("Permissions", systemImage: "lock.shield").tag(PrefTab.permissions)
             }
             .navigationSplitViewColumnWidth(min: 172, ideal: 188, max: 220)
@@ -35,7 +34,6 @@ struct PreferencesView: View {
             Group {
                 switch router.tab {
                 case .settings: SettingsView()
-                case .models: ModelsView()
                 case .permissions: PermissionsView()
                 }
             }

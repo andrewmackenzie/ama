@@ -1,11 +1,10 @@
 import Foundation
 
-/// A snapshot of everything WhisperKit reports about an in-flight (or just
-/// finished) transcription. Surfaced live in the main window so the actual
-/// numbers can be judged against real dictation lengths.
+/// A snapshot of an in-flight (or just finished) transcription, surfaced live in
+/// the main window. Most fields date from the WhisperKit engine; with Apple
+/// Speech only `text`, `elapsed`, `inputAudioSeconds`, and `isFinal` are filled.
 struct TranscriptionProgressInfo: Sendable, Equatable {
-    // Foundation `Progress` on the pipeline — fraction of the audio seeked
-    // through so far. Advances per 30s window, so short clips jump straight to 1.
+    // Fraction of the audio processed so far (0…1).
     var fractionCompleted: Double = 0
     var completedSeconds: Double = 0        // Progress.completedUnitCount (audio s)
     var totalSeconds: Double = 0            // Progress.totalUnitCount (audio s)
@@ -30,8 +29,11 @@ struct TranscriptionProgressInfo: Sendable, Equatable {
     var totalDecodingLoops: Double?
 }
 
-protocol Transcriber {
+protocol Transcriber: Sendable {
+    /// A human-readable label for the active engine (shown in the UI).
     var modelID: String { get }
+    /// Prepare the engine so the first transcription isn't blocked on setup.
+    func warmUp() async throws
     /// Transcribe audio, optionally reporting live progress. `onProgress` may be
     /// called from a background thread and should hop to the main actor itself.
     func transcribe(_ audio: [Float], onProgress: (@Sendable (TranscriptionProgressInfo) -> Void)?) async throws -> String

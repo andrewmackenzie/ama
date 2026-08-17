@@ -19,11 +19,13 @@
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>LSMinimumSystemVersion</key>
-	<string>14.0</string>
+	<string>26.0</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.productivity</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Ama records from the microphone while you hold the push-to-talk key, transcribes it on-device, and types the result at your cursor.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Ama transcribes your dictation on-device using Apple Speech. Audio is not sent off your Mac.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Capstan Networks LLC. MIT Licensed.</string>
 	<key>NSPrincipalClass</key>

@@ -44,6 +44,8 @@ final class DictationEngine: ObservableObject {
     private var symbolColor: Color
     private var pillColor: Color
     private var pillPadding: CGFloat
+    /// Overlay look: bottom-center glyph pill vs top-center notch bar.
+    private var overlayStyle: OverlayStyle
 
     // AI text cleanup (Apple Foundation Models).
     private var cleanupEnabled: Bool
@@ -80,6 +82,7 @@ final class DictationEngine: ObservableObject {
         symbolColor: Color = RGBAColor.defaultSymbol.color,
         pillColor: Color = RGBAColor.defaultPill.color,
         pillPadding: CGFloat = 28,
+        overlayStyle: OverlayStyle = .glyph,
         dumpWav: Bool = false,
         debugHotkey: Bool = false
     ) {
@@ -100,6 +103,7 @@ final class DictationEngine: ObservableObject {
         self.symbolColor = symbolColor
         self.pillColor = pillColor
         self.pillPadding = pillPadding
+        self.overlayStyle = overlayStyle
         self.dumpWav = dumpWav
         if showOverlay {
             self.overlay = makeOverlay()
@@ -109,6 +113,7 @@ final class DictationEngine: ObservableObject {
     /// Build an overlay wired to the audio meter and current glyph choices.
     private func makeOverlay() -> RecordingOverlay {
         let overlay = RecordingOverlay()
+        overlay.setLayout(overlayStyle == .notch ? .notch : .glyph)
         overlay.setGlyphs(listening: listeningGlyph, processing: processingGlyph, done: doneGlyph)
         overlay.setStyle(size: glyphSize, symbolColor: symbolColor, pillColor: pillColor, pillPadding: pillPadding)
         capture.onLevel = { level in overlay.pushLevel(level) }
@@ -230,6 +235,12 @@ final class DictationEngine: ObservableObject {
         self.pillColor = pillColor
         self.pillPadding = pillPadding
         overlay?.setStyle(size: size, symbolColor: symbolColor, pillColor: pillColor, pillPadding: pillPadding)
+    }
+
+    /// Switch the overlay between the glyph pill and the notch bar, live.
+    func setOverlayStyle(_ style: OverlayStyle) {
+        overlayStyle = style
+        overlay?.setLayout(style == .notch ? .notch : .glyph)
     }
 
     /// Flash the overlay through all three stages so the user can preview their

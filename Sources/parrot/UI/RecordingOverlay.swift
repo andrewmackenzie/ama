@@ -91,14 +91,19 @@ final class RecordingOverlay {
 
     private func ensureWindow() {
         if window != nil { return }
-        let panel = NSPanel(
+        let panel = OverlayPanel(
             contentRect: NSRect(x: 0, y: 0, width: 180, height: 180),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
         panel.isFloatingPanel = true
-        panel.level = .statusBar
+        // Sit above the menu bar and other apps' full-screen windows. `.statusBar`
+        // (25) isn't high enough to draw over a full-screen Space, so the cue would
+        // silently not appear when dictating into e.g. a full-screen terminal.
+        // `mainMenu + 3` owns the strip above the menu bar and full-screen apps
+        // without any private API (the level Talkify's notch HUD uses).
+        panel.level = NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue + 3)
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
@@ -121,6 +126,16 @@ final class RecordingOverlay {
         let x = visible.midX - frame.width / 2
         let y = visible.minY + 20
         window.setFrameOrigin(NSPoint(x: x, y: y))
+    }
+}
+
+/// Borderless panel that keeps the exact frame we set. AppKit otherwise
+/// constrains a window to sit below the menu-bar strip, which would pull the
+/// cue out from over a full-screen Space. Returning the frame unchanged (as
+/// Talkify's notch HUD does) lets us place it wherever we computed.
+private final class OverlayPanel: NSPanel {
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        frameRect
     }
 }
 

@@ -12,9 +12,18 @@ model-download UX, and no ANE contention (our known stall source), at the cost
 of pre-Tahoe and Intel users. The dual-engine option below is retained only as
 historical context; the plan now assumes a single Apple-Speech engine.
 
-**First build step: the overlay fullscreen fix (Tier 0.1).** Done — see
-`Sources/parrot/UI/RecordingOverlay.swift` (panel level `mainMenu + 3` +
-`constrainFrameRect` override).
+**Progress:**
+- ✅ Overlay fullscreen fix (Tier 0.1) — `RecordingOverlay` panel at
+  `mainMenu + 3` + `constrainFrameRect` override.
+- ✅ Engine migration (Tier 4) — WhisperKit replaced by `AppleSpeechTranscriber`
+  (Apple SpeechAnalyzer), model-management surface removed, floor at macOS 26.
+  Currently batch (transcribe the recorded clip on release); live-streaming text
+  is the remaining enhancement.
+- ✅ Notch HUD (Tier 1, first slice) — a selectable top-center notch bar with a
+  live waveform, alongside the classic glyph. Default stays Glyph.
+- ⏳ Next: live-streaming text into the notch (Compact captions); settings
+  polish (Tier 2) keeping ama's standard window chrome; Read Aloud / Drop /
+  Insights (Tier 3).
 
 ## TL;DR
 

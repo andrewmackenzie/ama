@@ -47,8 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             glyphSize: CGFloat(settings.glyphPointSize),
             symbolColor: settings.symbolColor.color,
             pillColor: settings.pillColor.color,
-            pillPadding: CGFloat(settings.pillPadding),
-            overlayStyle: settings.overlayStyle
+            pillPadding: CGFloat(settings.pillPadding)
         )
         engine.start()
 

@@ -89,16 +89,6 @@ enum OverlayPreset: String, CaseIterable, Identifiable {
     var done: Glyph { self == .emoji ? Glyph(kind: .emoji, value: "👍") : .defaultDone }
 }
 
-/// Where the recording overlay lives and how it's drawn.
-enum OverlayStyle: String, CaseIterable, Identifiable {
-    /// A small emoji/SF-Symbol pill near the bottom center (classic).
-    case glyph
-    /// A wide bar dropping from the top-center notch, with a live waveform.
-    case notch
-    var id: String { rawValue }
-    var label: String { self == .notch ? "Notch" : "Glyph" }
-}
-
 /// User preferences, persisted to `UserDefaults`. Single source of truth for
 /// the GUI; the CLI `run` command can still override individual values via
 /// flags at launch.
@@ -120,7 +110,6 @@ final class Settings: ObservableObject {
         static let cleanupSystemPrompt = "cleanupSystemPrompt"
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
         static let overlayPreset = "overlayPreset"
-        static let overlayStyle = "overlayStyle"
         static let listeningGlyph = "listeningGlyph"
         static let processingGlyph = "processingGlyph"
         static let doneGlyph = "doneGlyph"
@@ -144,7 +133,6 @@ final class Settings: ObservableObject {
             Key.cleanupSystemPrompt: TextCleaner.defaultSystemPrompt,
             Key.hasCompletedOnboarding: false,
             Key.overlayPreset: OverlayPreset.symbol.rawValue,
-            Key.overlayStyle: OverlayStyle.glyph.rawValue,
             Key.listeningGlyph: Glyph.defaultListening.storage,
             Key.processingGlyph: Glyph.defaultProcessing.storage,
             Key.doneGlyph: Glyph.defaultDone.storage,
@@ -223,11 +211,6 @@ final class Settings: ObservableObject {
     var overlayPreset: OverlayPreset {
         get { OverlayPreset(rawValue: defaults.string(forKey: Key.overlayPreset) ?? "") ?? .symbol }
         set { objectWillChange.send(); defaults.set(newValue.rawValue, forKey: Key.overlayPreset) }
-    }
-
-    var overlayStyle: OverlayStyle {
-        get { OverlayStyle(rawValue: defaults.string(forKey: Key.overlayStyle) ?? "") ?? .glyph }
-        set { objectWillChange.send(); defaults.set(newValue.rawValue, forKey: Key.overlayStyle) }
     }
 
     var glyphPointSize: Double {

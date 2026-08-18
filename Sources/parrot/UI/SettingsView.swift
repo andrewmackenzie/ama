@@ -33,21 +33,8 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("Overlay") {
-                Picker("Overlay style", selection: overlayStyleBinding) {
-                    ForEach(OverlayStyle.allCases) { style in
-                        Text(style.label).tag(style)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 260)
-                Text("Glyph shows a small pill near the bottom center. Notch drops a live-waveform bar from the top-center notch (also over full-screen apps).")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
             Section("Overlay symbols") {
-                Text("Used by the Glyph style. Choose what the overlay shows for each stage. Emoji uses 👂 🤔 👍; SF Symbols uses tinted glyphs. Open Advanced to customize each stage, the size, and the pill.")
+                Text("Choose what the recording overlay shows for each stage. Emoji uses 👂 🤔 👍; SF Symbols uses tinted glyphs. Open Advanced to customize each stage, the size, and the pill.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -273,16 +260,6 @@ struct SettingsView: View {
                 settings.processingGlyph = preset.processing
                 settings.doneGlyph = preset.done
                 pushGlyphs()
-            }
-        )
-    }
-
-    private var overlayStyleBinding: Binding<OverlayStyle> {
-        Binding(
-            get: { settings.overlayStyle },
-            set: { style in
-                settings.overlayStyle = style
-                engine.setOverlayStyle(style)
             }
         )
     }

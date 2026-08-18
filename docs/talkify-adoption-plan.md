@@ -19,11 +19,12 @@ historical context; the plan now assumes a single Apple-Speech engine.
   (Apple SpeechAnalyzer), model-management surface removed, floor at macOS 26.
   Currently batch (transcribe the recorded clip on release); live-streaming text
   is the remaining enhancement.
-- ✅ Notch HUD (Tier 1, first slice) — a selectable top-center notch bar with a
-  live waveform, alongside the classic glyph. Default stays Glyph.
-- ⏳ Next: live-streaming text into the notch (Compact captions); settings
-  polish (Tier 2) keeping ama's standard window chrome; Read Aloud / Drop /
-  Insights (Tier 3).
+- ❌ Notch HUD (Tier 1): built as an opt-in style, then reverted — Andrew finds
+  the fancy notch/waveform graphics a gimmick and prefers the classic glyph
+  overlay. The glyph overlay (with the full-screen fix) is the only overlay.
+- ❌ Live-streaming text into the HUD (Compact captions): dropped — not wanted.
+- ⏳ Next candidates: settings polish (Tier 2) keeping ama's standard window
+  chrome; Read Aloud / Drop / Insights (Tier 3).
 
 ## TL;DR
 

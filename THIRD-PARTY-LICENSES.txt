@@ -1275,10 +1275,11 @@ swift-transformers
 Talkify — https://github.com/tornikegomareli/Talkify (design inspiration)
 ============================================================
 
-Ama's Notch HUD and its Apple SpeechAnalyzer engine integration were inspired
-by Talkify, an MIT-licensed macOS dictation app by Tornike Gomareli. No source
-files were copied verbatim; the implementations here are original. This notice
-is included as a courtesy acknowledgment.
+Ama's Apple SpeechAnalyzer engine integration and its full-screen-capable
+overlay panel (window level, frame handling) were inspired by Talkify, an
+MIT-licensed macOS dictation app by Tornike Gomareli. No source files were
+copied verbatim; the implementations here are original. This notice is included
+as a courtesy acknowledgment.
 
 MIT License
 

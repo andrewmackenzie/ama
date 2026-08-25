@@ -99,11 +99,12 @@ final class RecordingOverlay {
         )
         panel.isFloatingPanel = true
         // Sit above the menu bar and other apps' full-screen windows. `.statusBar`
-        // (25) isn't high enough to draw over a full-screen Space, so the cue would
-        // silently not appear when dictating into e.g. a full-screen terminal.
-        // `mainMenu + 3` owns the strip above the menu bar and full-screen apps
-        // without any private API (the level Talkify's notch HUD uses).
-        panel.level = NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue + 3)
+        // (25) and even `mainMenu + 3` (28) aren't reliably high enough to draw
+        // over a full-screen Space, so the cue would silently not appear when
+        // dictating into e.g. a full-screen terminal. `.screenSaver` (1000) is the
+        // classic level for a HUD that must float over full-screen apps, no private
+        // API needed. Paired with `.canJoinAllSpaces` + `.fullScreenAuxiliary` below.
+        panel.level = .screenSaver
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false

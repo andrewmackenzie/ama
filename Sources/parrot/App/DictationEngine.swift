@@ -58,6 +58,10 @@ final class DictationEngine: ObservableObject {
     /// tap of a double-tap) rather than a push-to-talk hold.
     private let shortTapDwell: TimeInterval = 0.30
     private var pressTime: Date?
+    /// Exactly where focus was when this dictation *started* (app + window +
+    /// element). Text is routed back to that precise window on release, even if
+    /// focus moved to another window or app while you kept talking.
+    private var focusTarget: FocusTarget?
     private var awaitingSecondTap = false
     private var pendingTapSamples: [Float]?
     private var deferredTranscribe: DispatchWorkItem?
@@ -314,6 +318,9 @@ final class DictationEngine: ObservableObject {
     // MARK: - Recording helpers
 
     private func startCapture() {
+        // Lock the exact focus target now, at press time. On release we route the
+        // text back to this precise window even if focus wandered while you talked.
+        focusTarget = FocusTarget.capture()
         do {
             try capture.start()
             status = .recording
@@ -364,9 +371,11 @@ final class DictationEngine: ObservableObject {
         let onProgress: @Sendable (TranscriptionProgressInfo) -> Void = { [weak self] info in
             Task { @MainActor in self?.progressInfo = info }
         }
-        // Read the target (frontmost) app now, on the main actor, so cleanup can
-        // adapt to it — and skip cleanup entirely in code/terminal apps.
-        let appContext = AppContext.frontmost()
+        // Use the app captured when dictation *started* (not whatever is frontmost
+        // now) so cleanup adapts to the real target — and skip cleanup entirely in
+        // code/terminal apps.
+        let target = self.focusTarget
+        let appContext = AppContext.from(target?.app)
         let doCleanup = cleanupEnabled && !appContext.category.skipsCleanup
         // Run transcription OFF the main actor. As a main-actor Task it could sit
         // unscheduled for tens of seconds even with the app idle; the ANE work is
@@ -384,7 +393,7 @@ final class DictationEngine: ObservableObject {
                 let finalText = cleaned
                 await MainActor.run {
                     if !finalText.isEmpty {
-                        TextInjector.inject(finalText)
+                        self.injectRestoringFocus(finalText, to: target)
                         self.lastTranscript = finalText
                         self.history?.add(finalText, raw: rawText)
                     }
@@ -398,6 +407,26 @@ final class DictationEngine: ObservableObject {
                     self.status = .idle
                 }
             }
+        }
+    }
+
+    /// Inject `text` into the exact window that had focus when dictation began.
+    /// If that window still holds focus, type immediately. Otherwise raise the
+    /// captured window, restore focus to it, and give it a beat to become key
+    /// before posting keystrokes so they can't race the switch into the wrong
+    /// window (e.g. another Terminal running a different Claude Code session).
+    private func injectRestoringFocus(_ text: String, to target: FocusTarget?) {
+        guard let target, let app = target.app, !app.isTerminated else {
+            TextInjector.inject(text)
+            return
+        }
+        if target.isStillFocused() {
+            TextInjector.inject(text)
+            return
+        }
+        target.restore()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            TextInjector.inject(text)
         }
     }
 

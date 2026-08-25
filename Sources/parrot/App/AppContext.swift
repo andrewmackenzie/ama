@@ -40,7 +40,12 @@ struct AppContext {
 
     @MainActor
     static func frontmost() -> AppContext {
-        let app = NSWorkspace.shared.frontmostApplication
+        from(NSWorkspace.shared.frontmostApplication)
+    }
+
+    /// Build a context for a specific app (e.g. the one captured when dictation
+    /// *started*, not whatever is frontmost when it ends).
+    static func from(_ app: NSRunningApplication?) -> AppContext {
         let bundleID = app?.bundleIdentifier ?? ""
         let name = app?.localizedName ?? "an app"
         return AppContext(name: name, bundleID: bundleID, category: classify(bundleID))

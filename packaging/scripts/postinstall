@@ -1,0 +1,55 @@
+#!/bin/bash
+#
+# postinstall — restart Ama into the new version, but only if it was already running.
+#
+# The whole point: clicking the in-app "Download and install" pill hands this pkg to
+# Installer while Ama is running. Without this, the user is left running the OLD binary
+# (still in memory) until they quit and reopen by hand. So: if Ama was running when the
+# payload landed, quit it and relaunch the freshly-installed copy. If it was NOT running,
+# do nothing — an update must never launch an app the user had closed.
+#
+# Installer runs this as root, but Ama is a GUI app that has to live in the logged-in
+# user's session. So the quit and the relaunch go through `launchctl asuser <uid> sudo
+# -u <user>` in the console user's context — never as root, which would land the app in
+# the wrong session (or fail outright).
+
+set -u
+
+BUNDLE_ID="com.capstannetworks.ama"
+APP_PATH="/Applications/Ama.app"
+# Match the running process by its executable path, not the bare name "ama" (too
+# short — could collide). argv[0] is <...>/Ama.app/Contents/MacOS/ama.
+EXEC_MATCH="Ama.app/Contents/MacOS/ama"
+
+# Who is at the GUI? No console user (login window, or a headless/root install) means
+# there is no session to relaunch into — leave everything stopped.
+CONSOLE_USER=$(stat -f "%Su" /dev/console 2>/dev/null)
+if [ -z "$CONSOLE_USER" ] || [ "$CONSOLE_USER" = "root" ] || [ "$CONSOLE_USER" = "loginwindow" ]; then
+    exit 0
+fi
+CONSOLE_UID=$(id -u "$CONSOLE_USER")
+
+# Was the OLD version running? If not, we are done — do not launch it ourselves.
+if ! pgrep -f "$EXEC_MATCH" >/dev/null 2>&1; then
+    exit 0
+fi
+
+run_as_user() {
+    launchctl asuser "$CONSOLE_UID" sudo -u "$CONSOLE_USER" "$@"
+}
+
+# Ask it to quit gracefully first, so it releases the hotkey/audio and saves state.
+run_as_user osascript -e "tell application id \"$BUNDLE_ID\" to quit" >/dev/null 2>&1 || true
+
+# Give it up to ~8s to go, then force-kill any straggler.
+for _ in $(seq 1 16); do
+    pgrep -f "$EXEC_MATCH" >/dev/null 2>&1 || break
+    sleep 0.5
+done
+pkill -f "$EXEC_MATCH" 2>/dev/null || true
+
+# Relaunch the freshly-installed build (explicit path, so Launch Services can't
+# resolve the bundle id to some other stale copy).
+run_as_user open "$APP_PATH" >/dev/null 2>&1 || true
+
+exit 0

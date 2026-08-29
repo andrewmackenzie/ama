@@ -123,10 +123,13 @@ cat > "$COMPONENT_PLIST" <<EOF
 </plist>
 EOF
 
+# postinstall (packaging/scripts/postinstall) restarts Ama into the new version
+# iff it was running when this pkg installed — see that script for the rationale.
 pkgbuild \
     --root "$EXPORT_PATH" \
     --install-location /Applications \
     --component-plist "$COMPONENT_PLIST" \
+    --scripts "packaging/scripts" \
     --identifier "$APP_BUNDLE_ID" \
     --version "$VERSION" \
     --sign "$INSTALLER_IDENTITY" \

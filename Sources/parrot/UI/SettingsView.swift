@@ -4,6 +4,7 @@ struct SettingsView: View {
     @EnvironmentObject var settings: Settings
     @EnvironmentObject var engine: DictationEngine
     @EnvironmentObject var history: History
+    @EnvironmentObject var updateChecker: UpdateChecker
 
     @State private var loginItemNote: String?
 
@@ -136,6 +137,15 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Software Update") {
+                Button("Check for Updates") {
+                    Task { await updateChecker.check() }
+                }
+                .disabled(updateChecker.isChecking)
+
+                updateStatus
+            }
+
             Section("Text cleanup") {
                 Toggle(isOn: $settings.cleanupEnabled) {
                     HStack(spacing: 6) {
@@ -231,6 +241,46 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .navigationTitle("Settings")
+    }
+
+    /// The result line beneath "Check for Updates". Driven by `lastOutcome`, so
+    /// the twice-daily background check refreshes it for free — same instance.
+    @ViewBuilder
+    private var updateStatus: some View {
+        if updateChecker.isChecking {
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.small)
+                Text("Checking…")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else {
+            switch updateChecker.lastOutcome {
+            case nil:
+                Text("Ama \(updateChecker.currentShortVersion).")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            case .upToDate(let version):
+                Text("Ama \(version) is the latest version.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            case .updateAvailable(let update):
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Ama \(update.shortVersion) is available.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button(updateChecker.isDownloading ? "Downloading…" : "Download and install") {
+                        updateChecker.downloadAndOpen()
+                    }
+                    .buttonStyle(.link)
+                    .disabled(updateChecker.isDownloading)
+                }
+            case .failed:
+                Text("Couldn't check for updates. Check your connection and try again.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 
     private func pushGlyphs() {

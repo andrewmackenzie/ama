@@ -3,14 +3,6 @@
 Ultra-minimalist macOS dictation. Push-to-talk, on-device transcription, text injected at the
 cursor. Ships as a Developer ID-signed, notarized `.pkg` to `/Applications/Ama.app`.
 
-## Active work
-
-**→ [docs/tasks/update-check-in-settings.md](docs/tasks/update-check-in-settings.md)** — move
-"Check for Updates" out of the app menu and into Settings, with a visible result line. Read that
-file before touching `UpdateChecker.swift`, `AppDelegate.swift`, or `SettingsView.swift`.
-
-Delete this section and the task file once it ships.
-
 ## The product is Ama; the SPM module is still `parrot`
 
 This repo is a fork of [digimata/parrot](https://github.com/digimata/parrot). The product was

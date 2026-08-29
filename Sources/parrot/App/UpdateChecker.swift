@@ -8,6 +8,14 @@ struct AvailableUpdate: Equatable {
     let pkgURL: URL
 }
 
+/// Outcome of the most recent check — background or manual. `available` can't
+/// express this alone: nil means both "up to date" and "never checked".
+enum CheckOutcome: Equatable {
+    case upToDate(currentVersion: String)
+    case updateAvailable(AvailableUpdate)
+    case failed
+}
+
 /// Lightweight update checker — no Sparkle. Periodically (and on demand) fetches
 /// the Sparkle-style appcast, compares its build number to the running app, and
 /// exposes `available` so the title-bar pill can light up. Acting on the update
@@ -16,16 +24,21 @@ struct AvailableUpdate: Equatable {
 final class UpdateChecker: ObservableObject {
     static let feedURL = URL(string: "https://www.capstannetworks.com/ama/ama.xml")!
     /// How often to check in the background.
-    private static let interval: TimeInterval = 86_400   // 24h
+    private static let interval: TimeInterval = 43_200   // 12h (twice a day)
 
     @Published private(set) var available: AvailableUpdate?
     @Published private(set) var isChecking = false
     @Published private(set) var isDownloading = false
+    @Published private(set) var lastOutcome: CheckOutcome?
 
     private var timer: Timer?
 
     var currentBuild: Int {
         Int(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0") ?? 0
+    }
+
+    var currentShortVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
     }
 
     /// Check shortly after launch, then daily.
@@ -55,11 +68,14 @@ final class UpdateChecker: ObservableObject {
             let (data, _) = try await URLSession.shared.data(for: request)
             if let info = Self.parse(data), info.build > currentBuild {
                 available = info
+                lastOutcome = .updateAvailable(info)
             } else {
                 available = nil
+                lastOutcome = .upToDate(currentVersion: currentShortVersion)
             }
         } catch {
             // Leave `available` as-is on a network failure; try again next tick.
+            lastOutcome = .failed
         }
     }
 

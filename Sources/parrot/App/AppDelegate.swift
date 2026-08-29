@@ -156,12 +156,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    /// Menu action (Ama ▸ Check for Updates…). Silent — result shows as the
-    /// title-bar pill, not a dialog.
-    @objc private func checkForUpdates() {
-        Task { await updateChecker.check() }
-    }
-
     /// Menu action (Ama ▸ Settings…, ⌘,).
     @objc private func showPreferences() {
         openPreferences(tab: nil)
@@ -176,6 +170,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 .environmentObject(engine)
                 .environmentObject(settings)
                 .environmentObject(history)
+                .environmentObject(updateChecker)
             let w = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 720, height: 560),
                 styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -208,9 +203,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appMenuItem.submenu = appMenu
         let aboutItem = appMenu.addItem(withTitle: "About Ama", action: #selector(showAbout), keyEquivalent: "")
         aboutItem.target = self
-        appMenu.addItem(.separator())
-        let updateItem = appMenu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
-        updateItem.target = self
         appMenu.addItem(.separator())
         let prefItem = appMenu.addItem(withTitle: "Settings…", action: #selector(showPreferences), keyEquivalent: ",")
         prefItem.target = self

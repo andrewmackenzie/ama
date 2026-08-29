@@ -34,6 +34,11 @@ So **every commit bumps the version**. Never edit a version string by hand.
 
 ## Updates are homegrown. There is no Sparkle.
 
+> **House spec:** the update mechanism is standardized across all of Andrew's Mac apps.
+> `~/.claude/capstan-app-distribution.md` § "In-app update checking" is normative and carries the
+> numbered requirements (U1–U25) plus an audit checklist. Ama is its reference implementation, so a
+> change here is a change to the house pattern — update that doc too.
+
 `Sources/parrot/App/UpdateChecker.swift` is the entire update system: a ~110-line checker that
 fetches an appcast, compares its build number to the running app's `CFBundleVersion`, and — if
 newer — downloads the `.pkg` to `~/Downloads` and hands it to Installer.

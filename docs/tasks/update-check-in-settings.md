@@ -2,6 +2,10 @@
 
 **Status:** not started. Delete this file (and the "Active work" section of `CLAUDE.md`) when it ships.
 
+> Normative spec for all five Mac apps: `~/.claude/capstan-app-distribution.md`
+> § "In-app update checking" (requirements U1–U25). This task file is the Ama-specific work order;
+> that section is the standard Wadlow, Warren VPN, and Safari Profile Switcher will be built to.
+
 ## Decision: no Sparkle, now or later
 
 Andrew decided this explicitly on 2026-08-29. The existing appcast at

@@ -50,8 +50,12 @@ Sparkle-flavored so two homegrown consumers can share one feed:
    irrelevant), and
 2. **Installomator**, for MDM-driven fleet updates (`docs/installomator.md`).
 
-If you are about to conclude "this app uses Sparkle" from a grep hit, you are wrong. And do not
-propose adopting Sparkle as a cleanup — the two-consumer feed is the point.
+If you are about to conclude "this app uses Sparkle" from a grep hit, you are wrong.
+
+**Andrew ruled out adopting Sparkle on 2026-08-29.** Not "not yet" — decided. The appcast plus the
+homegrown checker is the whole update story, on purpose. Do not propose Sparkle as a cleanup, and
+do not import its conventions (modal "you're up to date" alerts, its settings UI, its signing
+scheme). The two-consumer feed is the point.
 
 ### Update-system landmines
 

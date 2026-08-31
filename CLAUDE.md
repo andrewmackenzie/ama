@@ -67,6 +67,20 @@ scheme). The two-consumer feed is the point.
 - Network failures in `check()` deliberately leave `available` unchanged rather than clearing it,
   so a flaky connection doesn't make a real update vanish from the UI.
 
+## Overlay landmines
+
+`Sources/parrot/UI/RecordingOverlay.swift` is a `.screenSaver`-level HUD `NSPanel`, and two lines
+keep it alive independent of Ama's own window state — both were real, shipped bugs (fixed 0.1.56):
+
+- **`panel.canHide = false`.** Without it, "Hide Ama" (⌘H) hides the overlay along with every other
+  app window, and it never returns. `hidesOnDeactivate = false` only covers *deactivation* (clicking
+  into another app), not an explicit app hide — you need both.
+- **`show()` decides "appearing" from `model.state`, not `window.isVisible`.** After a hide/unhide
+  cycle the panel reports a stale `isVisible == true` while off-screen; trusting it skips the
+  reposition + `orderFrontRegardless()` and strands the cue until relaunch.
+
+Don't drop either in a refactor of the panel setup.
+
 ## Build
 
 ```sh

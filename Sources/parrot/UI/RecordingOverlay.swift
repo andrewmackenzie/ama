@@ -22,7 +22,11 @@ final class RecordingOverlay {
         ensureWindow()
         if state == .recording { model.resetLevel() }
         guard let window else { return }
-        let needsAppear = !window.isVisible
+        // Decide "appearing" from our own state, not `window.isVisible`. After an
+        // app hide/unhide an NSPanel can report a stale `isVisible == true` while
+        // actually off-screen; trusting it sent us down the `else` branch (no
+        // reposition, no orderFront) and stranded the cue until relaunch.
+        let needsAppear = model.state == .hidden || !window.isVisible
         if needsAppear {
             positionAtBottomCenter(window)
             window.orderFrontRegardless()
@@ -111,6 +115,13 @@ final class RecordingOverlay {
         panel.ignoresMouseEvents = true
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
         panel.hidesOnDeactivate = false
+        // `hidesOnDeactivate = false` only survives *deactivation* (clicking into
+        // another app). It does NOT survive an explicit "Hide Ama" (⌘H): AppKit
+        // hides every window whose `canHide` is true along with the app. That left
+        // the overlay stuck — hidden with the app, and never shown again even after
+        // Ama was reopened. Opting out of app-hide keeps the cue a real HUD that
+        // fires on the hotkey regardless of whether Ama itself is hidden.
+        panel.canHide = false
 
         let host = NSHostingView(rootView: OverlayEmoji(model: model))
         host.frame = panel.contentView?.bounds ?? .zero

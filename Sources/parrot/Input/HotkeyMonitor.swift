@@ -40,7 +40,7 @@ final class HotkeyMonitor {
         let trusted = AXIsProcessTrustedWithOptions([promptKey: true] as CFDictionary)
         if !trusted {
             FileHandle.standardError.write(Data(
-                "accessibility not granted — system prompt opened. Grant access, then quit and relaunch parrot.\n".utf8
+                "accessibility not granted — system prompt opened. Grant access, then quit and relaunch ama.\n".utf8
             ))
             throw HotkeyError.tapCreateFailed
         }
@@ -120,7 +120,7 @@ private func hotkeyCallback(
 
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
         // System disabled our tap; we'll need to re-enable. For now just no-op
-        // and let the user restart parrot.
+        // and let the user restart ama.
         return Unmanaged.passUnretained(event)
     }
 

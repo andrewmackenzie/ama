@@ -216,6 +216,30 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
 
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Word corrections")
+                                .font(.caption.weight(.semibold))
+                            Spacer()
+                            Button("Reset to default") {
+                                settings.cleanupCorrections = TextCleaner.defaultCorrections
+                                engine.setCleanupCorrections(TextCleaner.defaultCorrections)
+                            }
+                            .font(.caption)
+                            .buttonStyle(.link)
+                        }
+                        TextEditor(text: $settings.cleanupCorrections)
+                            .font(.system(.caption, design: .monospaced))
+                            .frame(minHeight: 110)
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.25)))
+                            .onChange(of: settings.cleanupCorrections) { _, newValue in
+                                engine.setCleanupCorrections(newValue)
+                            }
+                        Text("Fix proper nouns the transcriber mishears. One rule per line: `Correct = misheard, variants`. Applied exactly (not by the model), so it's reliable. Whole-word and case-insensitive. Skip everyday homophones like \"cloud\" — a blind swap would break normal use.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
                     DisclosureGroup("Advanced: cleanup system prompt") {
                         VStack(alignment: .leading, spacing: 8) {
                             Label("This is the exact instruction sent to the on-device model — the core rules and examples that keep it cleaning text instead of replying to it. Edit only if you understand prompt design; a bad prompt can make cleanup add words, chat back, or fail. Use Reset if it misbehaves.", systemImage: "exclamationmark.triangle.fill")

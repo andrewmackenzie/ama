@@ -6,7 +6,7 @@ struct Ama: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "ama",
         abstract: "Minimal macOS dictation daemon. Hold Fn, speak, release.",
-        subcommands: [Run.self, Setup.self, Doctor.self, Install.self],
+        subcommands: [Run.self, Setup.self, Doctor.self, Install.self, CleanupTest.self],
         defaultSubcommand: Run.self
     )
 }

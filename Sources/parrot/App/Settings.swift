@@ -109,6 +109,7 @@ final class Settings: ObservableObject {
         static let cleanupEnabled = "cleanupEnabled"
         static let writingStyle = "writingStyle"
         static let cleanupSystemPrompt = "cleanupSystemPrompt"
+        static let cleanupCorrections = "cleanupCorrections"
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
         static let overlayPreset = "overlayPreset"
         static let listeningGlyph = "listeningGlyph"
@@ -133,6 +134,7 @@ final class Settings: ObservableObject {
             Key.cleanupEnabled: false,
             Key.writingStyle: TextCleaner.defaultProfile,
             Key.cleanupSystemPrompt: TextCleaner.defaultSystemPrompt,
+            Key.cleanupCorrections: TextCleaner.defaultCorrections,
             Key.hasCompletedOnboarding: false,
             Key.overlayPreset: OverlayPreset.symbol.rawValue,
             Key.listeningGlyph: Glyph.defaultListening.storage,
@@ -193,6 +195,11 @@ final class Settings: ObservableObject {
     var cleanupSystemPrompt: String {
         get { defaults.string(forKey: Key.cleanupSystemPrompt) ?? TextCleaner.defaultSystemPrompt }
         set { objectWillChange.send(); defaults.set(newValue, forKey: Key.cleanupSystemPrompt) }
+    }
+
+    var cleanupCorrections: String {
+        get { defaults.string(forKey: Key.cleanupCorrections) ?? TextCleaner.defaultCorrections }
+        set { objectWillChange.send(); defaults.set(newValue, forKey: Key.cleanupCorrections) }
     }
 
     var hasCompletedOnboarding: Bool {

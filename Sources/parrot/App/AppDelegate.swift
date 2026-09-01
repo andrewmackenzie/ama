@@ -41,6 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             cleanup: settings.cleanupEnabled,
             writingStyle: settings.writingStyle,
             cleanupSystemPrompt: settings.cleanupSystemPrompt,
+            cleanupCorrections: settings.cleanupCorrections,
             listeningGlyph: settings.listeningGlyph,
             processingGlyph: settings.processingGlyph,
             doneGlyph: settings.doneGlyph,

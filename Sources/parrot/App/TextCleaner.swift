@@ -58,13 +58,33 @@ enum TextCleaner {
     }
 
     /// Clean `text`, optionally shaped by a writing-style `profile` and a
-    /// per-app `context` hint. Returns the original text on any failure.
-    static func clean(_ text: String, systemPrompt: String = defaultSystemPrompt, profile: String = "", context: String? = nil) async -> String {
+    /// per-app `context` hint, then apply the deterministic proper-noun
+    /// `corrections` map. Returns the original text on any model failure.
+    ///
+    /// Two stages, on purpose: the on-device model handles fillers, false
+    /// starts, and punctuation (which it does well), while the corrections map
+    /// handles exact proper-noun substitutions (which a small model does *not*
+    /// do reliably — homophones like "clawed"→"Claude" are invisible to it).
+    static func clean(
+        _ text: String,
+        systemPrompt: String = defaultSystemPrompt,
+        profile: String = "",
+        context: String? = nil,
+        corrections: String = defaultCorrections
+    ) async -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return text }
+        let cleaned = await modelClean(trimmed, systemPrompt: systemPrompt, profile: profile, context: context)
+        return applyCorrections(cleaned, rules: parseCorrections(corrections))
+    }
+
+    /// The model half of `clean`: filler/punctuation cleanup via Foundation
+    /// Models. Returns `trimmed` unchanged if the model is unavailable, stalls,
+    /// or errors, so the caller always gets usable text.
+    private static func modelClean(_ trimmed: String, systemPrompt: String, profile: String, context: String?) async -> String {
         #if canImport(FoundationModels)
         if #available(macOS 26, *) {
-            guard case .available = SystemLanguageModel.default.availability else { return text }
+            guard case .available = SystemLanguageModel.default.availability else { return trimmed }
             let session = LanguageModelSession(instructions: instructions(systemPrompt: systemPrompt, profile: profile, context: context))
             // Low temperature keeps the rewrite deterministic and stops the
             // small on-device model from rambling or leaking its own rules.
@@ -89,17 +109,17 @@ enum TextCleaner {
             // arrives for `idleTimeout`, and fall back to the raw transcript.
             let stream = session.streamResponse(to: prompt, options: options)
             guard let raw = await collectWithIdleTimeout(stream, idleTimeout: 8) else {
-                return text
+                return trimmed
             }
             var out = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             // Defensively strip an echoed "Output:" label if the model adds one.
             if out.lowercased().hasPrefix("output:") {
                 out = String(out.dropFirst("Output:".count)).trimmingCharacters(in: .whitespacesAndNewlines)
             }
-            return out.isEmpty ? text : out
+            return out.isEmpty ? trimmed : out
         }
         #endif
-        return text
+        return trimmed
     }
 
     #if canImport(FoundationModels)
@@ -169,6 +189,86 @@ enum TextCleaner {
     Sign off emails with "Thanks." on its own line, then "--Andrew" on the next line. Keep everything concise and plain, no corporate filler.
     """
 
+    // MARK: - Proper-noun corrections
+
+    /// Default corrections applied *after* the model pass. One rule per line:
+    ///
+    ///     Correct spelling = misheard, variants
+    ///
+    /// Blank lines and lines starting with `#` are ignored. Matching is
+    /// case-insensitive and whole-word; the canonical spelling (with its casing)
+    /// always wins, so this also normalizes casing (e.g. "capstan" → "Capstan").
+    ///
+    /// This is deterministic on purpose: the on-device model won't reliably
+    /// swap homophones ("clawed"→"Claude") because nothing looks wrong to it.
+    /// Avoid listing everyday homophones (e.g. "cloud") here — a whole-word swap
+    /// has no context and would wreck "a cloud in the sky".
+    static let defaultCorrections = """
+        # Proper nouns the transcriber mishears.  Format:  Correct = misheard, variants
+        Claude = clawed, clod, claud
+        Addigy = a diggy, addigy, addage, addigee, addy g
+        Mosyle = mosul, moselle, mozille
+        SimpleMDM = simple mdm
+        Installomator = install a mator, installimator, installomater
+        Capstan = cap stan, capston, capstone
+        """
+
+    private struct CorrectionRule { let canonical: String; let variants: [String] }
+
+    /// Parse the corrections text into rules. Each rule's match set includes the
+    /// canonical spelling itself, so a correctly-spelled-but-miscased hit is
+    /// normalized too.
+    private static func parseCorrections(_ text: String) -> [CorrectionRule] {
+        var rules: [CorrectionRule] = []
+        for rawLine in text.split(whereSeparator: \.isNewline) {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            if line.isEmpty || line.hasPrefix("#") { continue }
+            guard let eq = line.firstIndex(of: "=") else { continue }
+            let canonical = line[..<eq].trimmingCharacters(in: .whitespaces)
+            guard !canonical.isEmpty else { continue }
+            var variants = line[line.index(after: eq)...]
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+            variants.append(canonical)
+            rules.append(CorrectionRule(canonical: canonical, variants: variants))
+        }
+        return rules
+    }
+
+    /// Whole-word, case-insensitive replace of every misheard variant with its
+    /// canonical spelling. Longer phrases are applied first so "install a mator"
+    /// wins over the "a mator" fragment. Multi-word variants tolerate any run of
+    /// whitespace between words.
+    static func applyCorrections(_ text: String, _ correctionsText: String) -> String {
+        applyCorrections(text, rules: parseCorrections(correctionsText))
+    }
+
+    private static func applyCorrections(_ text: String, rules: [CorrectionRule]) -> String {
+        var pairs: [(term: String, canonical: String)] = []
+        for rule in rules {
+            for variant in rule.variants { pairs.append((variant, rule.canonical)) }
+        }
+        pairs.sort { $0.term.count > $1.term.count }
+
+        var out = text
+        for (term, canonical) in pairs {
+            let words = term.split(whereSeparator: \.isWhitespace)
+                .map { NSRegularExpression.escapedPattern(for: String($0)) }
+            guard !words.isEmpty else { continue }
+            // Letter/number lookarounds instead of \b so a variant next to
+            // punctuation still matches, but a variant inside a longer word does not.
+            let pattern = "(?<![\\p{L}\\p{N}])" + words.joined(separator: "\\s+") + "(?![\\p{L}\\p{N}])"
+            guard let re = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { continue }
+            let range = NSRange(out.startIndex..., in: out)
+            out = re.stringByReplacingMatches(
+                in: out, options: [], range: range,
+                withTemplate: NSRegularExpression.escapedTemplate(for: canonical)
+            )
+        }
+        return out
+    }
+
     /// The default cleanup system prompt: fixed core rules + few-shot examples
     /// that keep the small on-device model consistent. Advanced users can
     /// override this in Settings; an empty override falls back to this.
@@ -179,6 +279,8 @@ enum TextCleaner {
         - Remove filler words (um, uh, er, ah, like, you know) and words the speaker retracted while correcting themselves.
         - Fix capitalization, punctuation, and spacing.
         - Keep the speaker's own words and contractions as spoken (don't -> don't). Never add a word the speaker did not say.
+        - Do not summarize, shorten, rephrase, or reformat. Preserve every point the speaker made and their wording; only drop fillers and retracted words.
+        - Keep technical terms, commands, file paths, and quoted text exactly as spoken.
         - Never use em dashes; use periods or commas.
 
         Return ONLY the rewritten message, with no preface, labels, or quotes.

@@ -51,6 +51,7 @@ final class DictationEngine: ObservableObject {
     private var cleanupEnabled: Bool
     private var writingStyle: String
     private var cleanupSystemPrompt: String
+    private var cleanupCorrections: String
 
     // Double-tap-to-lock state.
     private var doubleTapLockEnabled: Bool
@@ -79,6 +80,7 @@ final class DictationEngine: ObservableObject {
         cleanup: Bool = false,
         writingStyle: String = "",
         cleanupSystemPrompt: String = TextCleaner.defaultSystemPrompt,
+        cleanupCorrections: String = TextCleaner.defaultCorrections,
         listeningGlyph: Glyph = .defaultListening,
         processingGlyph: Glyph = .defaultProcessing,
         doneGlyph: Glyph = .defaultDone,
@@ -99,6 +101,7 @@ final class DictationEngine: ObservableObject {
         self.cleanupEnabled = cleanup
         self.writingStyle = writingStyle
         self.cleanupSystemPrompt = cleanupSystemPrompt
+        self.cleanupCorrections = cleanupCorrections
         self.listeningGlyph = listeningGlyph
         self.processingGlyph = processingGlyph
         self.doneGlyph = doneGlyph
@@ -208,6 +211,7 @@ final class DictationEngine: ObservableObject {
     }
     func setWritingStyle(_ style: String) { writingStyle = style }
     func setCleanupSystemPrompt(_ prompt: String) { cleanupSystemPrompt = prompt }
+    func setCleanupCorrections(_ corrections: String) { cleanupCorrections = corrections }
 
     func setDoubleTapLock(_ enabled: Bool) {
         doubleTapLockEnabled = enabled
@@ -382,6 +386,7 @@ final class DictationEngine: ObservableObject {
         let transcriber = self.transcriber
         let style = writingStyle
         let sysPrompt = cleanupSystemPrompt
+        let corrections = cleanupCorrections
         // Forward the engine's live progress to the main-window panel. Called
         // from a background thread, so hop to the main actor to publish.
         let onProgress: @Sendable (TranscriptionProgressInfo) -> Void = { [weak self] info in
@@ -404,7 +409,7 @@ final class DictationEngine: ObservableObject {
                     // Best-effort: TextCleaner streams with its own inactivity
                     // watchdog, so a stalled ANE falls back to the raw transcript
                     // while a legitimately long dictation still cleans fully.
-                    cleaned = await TextCleaner.clean(rawText, systemPrompt: sysPrompt, profile: style, context: appContext.promptContext)
+                    cleaned = await TextCleaner.clean(rawText, systemPrompt: sysPrompt, profile: style, context: appContext.promptContext, corrections: corrections)
                 }
                 let finalText = cleaned
                 await MainActor.run {

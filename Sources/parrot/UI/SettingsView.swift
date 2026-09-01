@@ -1,3 +1,6 @@
+import AVFoundation
+import AppKit
+import ApplicationServices
 import SwiftUI
 
 struct SettingsView: View {
@@ -7,9 +10,22 @@ struct SettingsView: View {
     @EnvironmentObject var updateChecker: UpdateChecker
 
     @State private var loginItemNote: String?
+    @State private var checks: [Check] = DoctorReport.run()
 
     var body: some View {
         Form {
+            Section {
+                ForEach(Array(checks.enumerated()), id: \.offset) { _, check in
+                    permissionRow(check)
+                }
+                Button("Re-check") { refreshPermissions() }
+            } header: {
+                Text("Permissions")
+            } footer: {
+                Text("Grant Accessibility and Microphone access, and set the 🌐 key to “Do Nothing” so Fn is a clean push-to-talk key. macOS may require you to quit and reopen Ama after granting Accessibility.")
+                    .font(.caption)
+            }
+
             Section("Dictation") {
                 Picker("Push-to-talk key", selection: $settings.hotkey) {
                     ForEach(Hotkey.allCases) { key in
@@ -242,7 +258,103 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle("Settings")
+        .navigationTitle("Ama Settings")
+        .onAppear(perform: refreshPermissions)
+        // Re-run the checks when the app regains focus (e.g. returning from System
+        // Settings after granting) so the rows update without needing "Re-check".
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            checks = DoctorReport.run()
+        }
+    }
+
+    // MARK: - Permissions
+
+    @ViewBuilder
+    private func permissionRow(_ check: Check) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            permissionIcon(for: check.status)
+                .frame(width: 20)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(check.name.capitalized).fontWeight(.medium)
+                if let detail = permissionDetail(check.status) {
+                    Text(detail).font(.caption).foregroundStyle(.secondary)
+                }
+                if let remediation = check.remediation {
+                    Text(remediation).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+            permissionActionButton(for: check)
+        }
+        .padding(.vertical, 3)
+    }
+
+    @ViewBuilder
+    private func permissionActionButton(for check: Check) -> some View {
+        if case .ok = check.status {
+            EmptyView()
+        } else {
+            switch check.name {
+            case "microphone":
+                Button("Grant") { requestMicrophone() }
+            case "accessibility":
+                Button("Open Settings") { openAccessibilitySettings() }
+            case "fn key mapping":
+                Button("Open Keyboard") { openKeyboardSettings() }
+            default:
+                EmptyView()
+            }
+        }
+    }
+
+    private func permissionIcon(for status: CheckStatus) -> some View {
+        switch status {
+        case .ok:
+            return Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+        case .warn:
+            return Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.yellow)
+        case .fail:
+            return Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
+        }
+    }
+
+    private func permissionDetail(_ status: CheckStatus) -> String? {
+        switch status {
+        case .ok: return "Granted"
+        case .warn(let msg), .fail(let msg): return msg
+        }
+    }
+
+    private func refreshPermissions() {
+        checks = DoctorReport.run()
+        // If accessibility just came through, bring the hotkey tap up.
+        if !engine.hotkeyActive {
+            engine.startHotkey()
+        }
+        if DoctorReport.allOK(checks) {
+            settings.hasCompletedOnboarding = true
+        }
+    }
+
+    private func requestMicrophone() {
+        AVCaptureDevice.requestAccess(for: .audio) { _ in
+            DispatchQueue.main.async { refreshPermissions() }
+        }
+    }
+
+    private func openAccessibilitySettings() {
+        let promptKey = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
+        _ = AXIsProcessTrustedWithOptions([promptKey: true] as CFDictionary)
+        openURL("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+    }
+
+    private func openKeyboardSettings() {
+        openURL("x-apple.systempreferences:com.apple.Keyboard-Settings.extension")
+    }
+
+    private func openURL(_ urlString: String) {
+        guard let url = URL(string: urlString) else { return }
+        NSWorkspace.shared.open(url)
     }
 
     /// The result line beneath "Check for Updates". Driven by `lastOutcome`, so

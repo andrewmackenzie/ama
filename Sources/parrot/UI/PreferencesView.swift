@@ -6,39 +6,31 @@ extension Notification.Name {
     static let amaOpenPreferences = Notification.Name("amaOpenPreferences")
 }
 
+/// Historically the Settings window had separate Settings and Permissions tabs.
+/// They're now one continuous surface (permissions live at the top of
+/// `SettingsView`), so this is a single case kept only so the deep-link plumbing
+/// in AppDelegate — which can request the window open "on permissions" — still
+/// compiles. There is nothing to switch between.
 enum PrefTab: Hashable {
     case settings, permissions
 }
 
-/// Drives which tab the Settings window shows. Held by the AppDelegate so it can
-/// deep-link (e.g. open straight to Permissions on first run).
+/// Held by the AppDelegate so it can deep-link the Settings window open (e.g.
+/// straight from the Dictation permission banner on first run). With a single
+/// pane the value no longer selects anything, but the router stays so callers
+/// keep working.
 @MainActor
 final class PreferencesRouter: ObservableObject {
     @Published var tab: PrefTab = .settings
 }
 
-/// The standalone Settings window: a sidebar of Settings / Models / Permissions
-/// with the selected pane on the right — the same shape the main window used to
-/// have, and reliable selection behavior.
+/// The standalone Settings window: one continuous settings surface with the
+/// permission checks at the top, followed by the app's preferences.
 struct PreferencesView: View {
     @ObservedObject var router: PreferencesRouter
 
     var body: some View {
-        NavigationSplitView {
-            List(selection: $router.tab) {
-                Label("Settings", systemImage: "gearshape").tag(PrefTab.settings)
-                Label("Permissions", systemImage: "lock.shield").tag(PrefTab.permissions)
-            }
-            .navigationSplitViewColumnWidth(min: 172, ideal: 188, max: 220)
-        } detail: {
-            Group {
-                switch router.tab {
-                case .settings: SettingsView()
-                case .permissions: PermissionsView()
-                }
-            }
+        SettingsView()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

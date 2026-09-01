@@ -177,7 +177,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 backing: .buffered,
                 defer: false
             )
-            w.title = "Settings"
+            w.title = "Ama Settings"
             w.minSize = NSSize(width: 620, height: 460)
             w.isRestorable = false
             let hv = NSHostingView(rootView: root)

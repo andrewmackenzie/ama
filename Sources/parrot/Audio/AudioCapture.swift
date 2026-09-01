@@ -1,4 +1,5 @@
 import AVFoundation
+import ExceptionCatcher
 import Foundation
 
 /// Captures microphone audio while recording is active and returns a 16 kHz
@@ -9,11 +10,12 @@ final class AudioCapture {
         case engineStartFailed(Error)
         case converterCreationFailed
         case noInputAvailable
+        case tapInstallFailed(Error)
     }
 
     static let targetSampleRate: Double = 16_000
 
-    private let engine = AVAudioEngine()
+    private var engine = AVAudioEngine()
     private var converter: AVAudioConverter?
     private var samples: [Float] = []
     private var isRecording = false
@@ -29,6 +31,15 @@ final class AudioCapture {
     func start() throws {
         guard !isRecording else { return }
         lastLevelNanos = 0
+
+        // Rebuild the engine every start. A long-lived AVAudioEngine caches the
+        // input node's hardware format; after a sleep/wake cycle or an audio
+        // device change that cache goes stale, so outputFormat(forBus:) returns
+        // a plausible-but-wrong format that passes the checks below yet makes
+        // installTap throw against the live hardware format. A fresh engine
+        // reads the format from the current default device. (Real, shipped
+        // crash in 0.1.50: installTap threw ~86 min in, across a wake.)
+        engine = AVAudioEngine()
 
         let input = engine.inputNode
         let inputFormat = input.outputFormat(forBus: 0)
@@ -64,8 +75,17 @@ final class AudioCapture {
         // Tap with input format; convert inside the callback. A small buffer
         // means frequent callbacks (~40/s), so the overlay's mic meter reacts
         // snappily to speech instead of lagging behind it.
-        input.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, _ in
-            self?.process(buffer: buffer, converter: converter, targetFormat: targetFormat)
+        //
+        // installTap raises an Obj-C NSException (which Swift's do/catch can't
+        // catch — it would abort the app) if the format still doesn't match the
+        // hardware, e.g. a device change between the format read above and here.
+        // Catch it via the shim and surface it as a throwable Swift error.
+        if let ex = ex_catching({
+            input.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, _ in
+                self?.process(buffer: buffer, converter: converter, targetFormat: targetFormat)
+            }
+        }) {
+            throw CaptureError.tapInstallFailed(ex)
         }
 
         engine.prepare()

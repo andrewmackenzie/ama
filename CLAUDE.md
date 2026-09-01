@@ -78,8 +78,14 @@ keep it alive independent of Ama's own window state — both were real, shipped 
 - **`show()` decides "appearing" from `model.state`, not `window.isVisible`.** After a hide/unhide
   cycle the panel reports a stale `isVisible == true` while off-screen; trusting it skips the
   reposition + `orderFrontRegardless()` and strands the cue until relaunch.
+- **`show()`/`finish()` must ALWAYS `presentOnActiveSpace()` — never gate ordering on `isVisible`.**
+  Same stale-`isVisible == true` trap, one Space over: after you switch into another app's
+  full-screen Space the panel is ordered-in but stranded on the *previous* Space, so it never
+  appears over full-screen (dictation works, no overlay). Re-asserting `collectionBehavior` +
+  reposition + `orderFrontRegardless()` on every show re-homes it onto the active Space.
+  `isVisible`/state may only pick the grow-in animation. Debug kit: `docs/overlay-fullscreen-debug.md`.
 
-Don't drop either in a refactor of the panel setup.
+Don't drop any of these in a refactor of the panel setup.
 
 ## Build
 

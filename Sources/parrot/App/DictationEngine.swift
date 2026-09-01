@@ -28,6 +28,8 @@ final class DictationEngine: ObservableObject {
 
     private let monitor: HotkeyMonitor
     private let capture = AudioCapture()
+    /// Retained so the wake observer can be torn down; also gates double-registration.
+    private var wakeObserver: NSObjectProtocol?
     private let transcriber: any Transcriber
     private var overlay: RecordingOverlay?
     private var history: History?
@@ -126,6 +128,20 @@ final class DictationEngine: ObservableObject {
     func start() {
         startHotkey()
         warmUpModel()
+        observeWake()
+    }
+
+    /// Prime the microphone when the Mac wakes. The audio HAL delivers silence
+    /// until a stream has run on it post-wake, so without this the first couple
+    /// of dictations after sleep come back empty. Priming at wake bridges that
+    /// gap so the user's first real dictation lands.
+    private func observeWake() {
+        guard wakeObserver == nil else { return }
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.capture.prewarm() }
+        }
     }
 
     /// Attempt to register the global hotkey tap. Sets `hotkeyActive` and, on

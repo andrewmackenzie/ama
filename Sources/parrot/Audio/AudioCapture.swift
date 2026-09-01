@@ -16,6 +16,7 @@ final class AudioCapture {
     static let targetSampleRate: Double = 16_000
 
     private var engine = AVAudioEngine()
+    private var prewarmEngine: AVAudioEngine?
     private var converter: AVAudioConverter?
     private var samples: [Float] = []
     private var isRecording = false
@@ -30,6 +31,7 @@ final class AudioCapture {
     /// Begin recording. Idempotent — calling while already recording is a no-op.
     func start() throws {
         guard !isRecording else { return }
+        stopPrewarm()   // release the priming stream before we take the mic
         lastLevelNanos = 0
 
         // Rebuild the engine every start. A long-lived AVAudioEngine caches the
@@ -112,6 +114,41 @@ final class AudioCapture {
         samples.removeAll(keepingCapacity: true)
         lock.unlock()
         return captured
+    }
+
+    /// Spin the input device up briefly so the first real capture after a system
+    /// wake isn't silent. After sleep the audio HAL delivers nothing until some
+    /// stream has actually run on it; without this priming the first couple of
+    /// dictations post-wake come back empty — the overlay and mic meter work,
+    /// but the clip is silence. A ~1s no-op stream resumes the device, then we
+    /// release the mic. No-op while a real capture is in progress or already
+    /// priming. Call on the main thread (e.g. from the system-wake notification).
+    func prewarm() {
+        guard !isRecording, prewarmEngine == nil else { return }
+        let warm = AVAudioEngine()
+        let input = warm.inputNode
+        let format = input.outputFormat(forBus: 0)
+        guard format.channelCount > 0, format.sampleRate > 0 else { return }
+        // A no-op tap makes the engine actually pull from the device. installTap
+        // can throw an Obj-C exception (see start()), so guard it the same way.
+        if ex_catching({
+            input.installTap(onBus: 0, bufferSize: 1024, format: format) { _, _ in }
+        }) != nil { return }
+        guard (try? warm.start()) != nil else {
+            input.removeTap(onBus: 0)
+            return
+        }
+        prewarmEngine = warm
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+            self?.stopPrewarm()
+        }
+    }
+
+    private func stopPrewarm() {
+        guard let warm = prewarmEngine else { return }
+        warm.stop()
+        warm.inputNode.removeTap(onBus: 0)
+        prewarmEngine = nil
     }
 
     private func process(

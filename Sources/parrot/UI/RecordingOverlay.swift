@@ -22,14 +22,20 @@ final class RecordingOverlay {
         ensureWindow()
         if state == .recording { model.resetLevel() }
         guard let window else { return }
-        // Decide "appearing" from our own state, not `window.isVisible`. After an
-        // app hide/unhide an NSPanel can report a stale `isVisible == true` while
-        // actually off-screen; trusting it sent us down the `else` branch (no
-        // reposition, no orderFront) and stranded the cue until relaunch.
-        let needsAppear = model.state == .hidden || !window.isVisible
-        if needsAppear {
-            positionAtBottomCenter(window)
-            window.orderFrontRegardless()
+        // Whether to play the grow-in animation: only when coming from nothing.
+        // This flag must NOT gate the ordering — that was the full-screen bug.
+        let appearing = model.state == .hidden || !window.isVisible
+        // Re-pull the panel onto the *currently active* Space on every show. A HUD
+        // ordered-in on one Space (e.g. the desktop) does not follow you into a
+        // full-screen app's Space on its own, and we can't skip `orderFrontRegardless`
+        // to find out: after a Space switch `window.isVisible` reports a stale `true`
+        // while the panel sits off-screen on the old Space. Gating on it (the old
+        // code) stranded the cue — no overlay when dictating into full-screen
+        // Terminal. Ordering front unconditionally lands it on the active Space;
+        // re-asserting the collection behavior forces the window server to
+        // re-evaluate Space membership.
+        presentOnActiveSpace(window)
+        if appearing {
             // Defer the state change so SwiftUI lays out in the .hidden style
             // first, then animates to the visible style on the next runloop tick.
             DispatchQueue.main.async { [model] in
@@ -44,10 +50,10 @@ final class RecordingOverlay {
     func finish() {
         ensureWindow()
         guard let window else { return }
-        if !window.isVisible {
-            positionAtBottomCenter(window)
-            window.orderFrontRegardless()
-        }
+        // Same reasoning as `show(_:)`: always re-pull onto the active Space rather
+        // than trusting `isVisible`, or the done glyph never appears over a
+        // full-screen app.
+        presentOnActiveSpace(window)
         model.state = .done
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             guard let self else { return }
@@ -129,6 +135,16 @@ final class RecordingOverlay {
         panel.contentView = host
 
         window = panel
+    }
+
+    /// Bring the panel onto the *currently active* Space and order it front. Must
+    /// run on every show — see the note in `show(_:)`. Re-asserting the collection
+    /// behavior makes the window server re-evaluate which Space the panel joins,
+    /// which is what fixes the intermittent no-overlay-over-full-screen bug.
+    private func presentOnActiveSpace(_ window: NSPanel) {
+        window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
+        positionAtBottomCenter(window)
+        window.orderFrontRegardless()
     }
 
     private func positionAtBottomCenter(_ window: NSPanel) {

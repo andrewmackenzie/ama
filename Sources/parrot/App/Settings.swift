@@ -102,6 +102,7 @@ final class Settings: ObservableObject {
         static let hotkey = "hotkey"
         static let doubleTapLock = "doubleTapLock"
         static let showOverlay = "showOverlay"
+        static let showTranscriptionProgress = "showTranscriptionProgress"
         static let launchAtLogin = "launchAtLogin"
         static let keepHistory = "keepHistory"
         static let historyLimit = "historyLimit"
@@ -125,6 +126,7 @@ final class Settings: ObservableObject {
             Key.hotkey: Hotkey.fn.rawValue,
             Key.doubleTapLock: true,
             Key.showOverlay: true,
+            Key.showTranscriptionProgress: false,
             Key.launchAtLogin: false,
             Key.keepHistory: true,
             Key.historyLimit: 200,
@@ -156,6 +158,11 @@ final class Settings: ObservableObject {
     var showOverlay: Bool {
         get { defaults.bool(forKey: Key.showOverlay) }
         set { objectWillChange.send(); defaults.set(newValue, forKey: Key.showOverlay) }
+    }
+
+    var showTranscriptionProgress: Bool {
+        get { defaults.bool(forKey: Key.showTranscriptionProgress) }
+        set { objectWillChange.send(); defaults.set(newValue, forKey: Key.showTranscriptionProgress) }
     }
 
     var launchAtLogin: Bool {

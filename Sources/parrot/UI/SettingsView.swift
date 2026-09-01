@@ -25,6 +25,8 @@ struct SettingsView: View {
                         engine.setOverlayEnabled(newValue)
                     }
 
+                Toggle("Show transcription progress", isOn: $settings.showTranscriptionProgress)
+
                 Toggle("Double-tap to lock (hands-free)", isOn: $settings.doubleTapLock)
                     .onChange(of: settings.doubleTapLock) { _, newValue in
                         engine.setDoubleTapLock(newValue)

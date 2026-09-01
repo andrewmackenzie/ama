@@ -15,7 +15,7 @@ struct HomeView: View {
             Divider()
             VStack(alignment: .leading, spacing: 16) {
                 if !DoctorReport.allOK(checks) { permissionBanner }
-                if let info = engine.progressInfo { progressPanel(info) }
+                if settings.showTranscriptionProgress, let info = engine.progressInfo { progressPanel(info) }
                 testArea
                 recentsHeader
             }

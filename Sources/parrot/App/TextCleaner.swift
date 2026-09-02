@@ -245,7 +245,8 @@ enum TextCleaner {
     static let defaultCorrections = """
         # Proper nouns the transcriber mishears.  Format:  Correct = misheard, variants
         Claude = clawed, clod, claud
-        Addigy = a diggy, addigy, addage, addigee, addy g
+        Claude code = quad code, clawed code, cloud code
+        Addigy = a diggy, addigy, addage, addigee, addy g, attigy, attig, add a g
         Mosyle = mosul, moselle, mozille
         SimpleMDM = simple mdm
         Installomator = install a mator, installimator, installomater
@@ -281,6 +282,14 @@ enum TextCleaner {
     /// whitespace between words.
     static func applyCorrections(_ text: String, _ correctionsText: String) -> String {
         applyCorrections(text, rules: parseCorrections(correctionsText))
+    }
+
+    /// The canonical spellings from a corrections list (the left-hand sides).
+    /// Fed to the speech recognizer as contextual-bias strings so it outputs
+    /// these terms correctly in the first place — far more robust than chasing
+    /// every phonetic misspelling ("Attigy"/"Attergy"/…) in the map afterward.
+    static func correctionCanonicals(_ correctionsText: String) -> [String] {
+        parseCorrections(correctionsText).map(\.canonical)
     }
 
     private static func applyCorrections(_ text: String, rules: [CorrectionRule]) -> String {

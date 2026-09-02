@@ -36,6 +36,7 @@ struct CleanupTest: ParsableCommand {
         let d = UserDefaults(suiteName: "com.capstannetworks.ama") ?? .standard
         let sys = d.string(forKey: "cleanupSystemPrompt") ?? TextCleaner.defaultSystemPrompt
         let profile = d.string(forKey: "writingStyle") ?? TextCleaner.defaultProfile
+        let corrections = d.string(forKey: "cleanupCorrections") ?? TextCleaner.defaultCorrections
 
         if let reason = TextCleaner.unavailableReason {
             FileHandle.standardError.write(Data("cleanup unavailable: \(reason)\n".utf8))
@@ -57,7 +58,7 @@ struct CleanupTest: ParsableCommand {
             for (i, raw) in inputs.enumerated() {
                 let t = raw.trimmingCharacters(in: .whitespacesAndNewlines)
                 let started = Date()
-                let out = await TextCleaner.clean(t, systemPrompt: sys, profile: profile)
+                let out = await TextCleaner.clean(t, systemPrompt: sys, profile: profile, corrections: corrections)
                 let ms = Int(Date().timeIntervalSince(started) * 1000)
                 let changed = out != t
                 print("── [\(i + 1)/\(inputs.count)]  \(ms) ms  \(changed ? "CHANGED" : "unchanged")")

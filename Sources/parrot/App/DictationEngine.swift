@@ -91,7 +91,12 @@ final class DictationEngine: ObservableObject {
         dumpWav: Bool = false,
         debugHotkey: Bool = false
     ) {
-        let transcriber = AppleSpeechTranscriber()
+        // Bias the recognizer toward the corrections map's canonical spellings
+        // (Addigy, Claude, Mosyle, …) so it emits them correctly rather than a
+        // new phonetic guess each time.
+        let transcriber = AppleSpeechTranscriber(
+            contextualStrings: TextCleaner.correctionCanonicals(cleanupCorrections)
+        )
         self.currentModelID = transcriber.modelID
         self.transcriber = transcriber
         self.monitor = HotkeyMonitor(hotkey: hotkey, debug: debugHotkey)

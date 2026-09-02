@@ -28,11 +28,16 @@ actor AppleSpeechTranscriber: Transcriber {
     }
 
     private let localeIdentifier: String?
+    /// Terms to bias recognition toward (product/proper nouns like "Addigy",
+    /// "Claude") so the model spells them right instead of emitting a fresh
+    /// phonetic guess each time. Sourced from the corrections map's canonicals.
+    private let contextualStrings: [String]
     private var prepared: PreparedSession?
     private var reservedLocale: Locale?
 
-    init(localeIdentifier: String? = nil) {
+    init(localeIdentifier: String? = nil, contextualStrings: [String] = []) {
         self.localeIdentifier = localeIdentifier
+        self.contextualStrings = contextualStrings
     }
 
     /// Build a prepared session so the first dictation is instant. Safe to call
@@ -148,6 +153,16 @@ actor AppleSpeechTranscriber: Transcriber {
             options: SpeechAnalyzer.Options(priority: .high, modelRetention: .lingering)
         )
         try await analyzer.prepareToAnalyze(in: audioFormat)
+
+        // Bias recognition toward our product/proper nouns so the model spells
+        // them right up front (e.g. "Addigy" instead of an endless parade of
+        // "Attigy"/"Attergy"/"Attitude"). This is phrase biasing, not a
+        // pronunciation dictionary, so the corrections map still backs it up.
+        if !contextualStrings.isEmpty {
+            let context = AnalysisContext()
+            context.contextualStrings[.general] = contextualStrings
+            try await analyzer.setContext(context)
+        }
 
         return PreparedSession(
             locale: locale,

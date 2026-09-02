@@ -235,7 +235,7 @@ struct SettingsView: View {
                             .onChange(of: settings.cleanupCorrections) { _, newValue in
                                 engine.setCleanupCorrections(newValue)
                             }
-                        Text("Fix proper nouns the transcriber mishears. One rule per line: `Correct = misheard, variants`. Applied exactly (not by the model), so it's reliable. Whole-word and case-insensitive. Skip everyday homophones like \"cloud\" — a blind swap would break normal use.")
+                        Text("Words the transcriber gets wrong (Addigy, Claude, product names). Just list them one per line — Ama biases speech recognition toward them so they come out right, no need to know how they're misheard. To also force-fix specific mishears, add `= wrong1, wrong2` after a word. Edits apply on your next dictation. Skip everyday homophones like \"cloud\" — a blind swap would break normal use.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

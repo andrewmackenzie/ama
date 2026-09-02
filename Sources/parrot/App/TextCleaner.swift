@@ -263,13 +263,22 @@ enum TextCleaner {
         for rawLine in text.split(whereSeparator: \.isNewline) {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
             if line.isEmpty || line.hasPrefix("#") { continue }
-            guard let eq = line.firstIndex(of: "=") else { continue }
-            let canonical = line[..<eq].trimmingCharacters(in: .whitespaces)
+            // A line is either "Canonical = misheard, variants" or just a bare
+            // "Canonical" — the bare form still biases the recognizer toward the
+            // word and normalizes its casing, it just has no misheard forms to
+            // swap. So the common case is "type the word, one per line."
+            let canonical: String
+            var variants: [String] = []
+            if let eq = line.firstIndex(of: "=") {
+                canonical = line[..<eq].trimmingCharacters(in: .whitespaces)
+                variants = line[line.index(after: eq)...]
+                    .split(separator: ",")
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                    .filter { !$0.isEmpty }
+            } else {
+                canonical = line
+            }
             guard !canonical.isEmpty else { continue }
-            var variants = line[line.index(after: eq)...]
-                .split(separator: ",")
-                .map { $0.trimmingCharacters(in: .whitespaces) }
-                .filter { !$0.isEmpty }
             variants.append(canonical)
             rules.append(CorrectionRule(canonical: canonical, variants: variants))
         }

@@ -37,4 +37,12 @@ protocol Transcriber: Sendable {
     /// Transcribe audio, optionally reporting live progress. `onProgress` may be
     /// called from a background thread and should hop to the main actor itself.
     func transcribe(_ audio: [Float], onProgress: (@Sendable (TranscriptionProgressInfo) -> Void)?) async throws -> String
+    /// Update the recognizer's contextual-bias terms (proper nouns to spell
+    /// correctly) live, so a Settings edit takes effect without a relaunch.
+    func updateContextualStrings(_ terms: [String]) async
+}
+
+extension Transcriber {
+    /// Default no-op: engines without recognition-time biasing ignore this.
+    func updateContextualStrings(_ terms: [String]) async {}
 }

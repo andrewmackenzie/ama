@@ -31,7 +31,7 @@ actor AppleSpeechTranscriber: Transcriber {
     /// Terms to bias recognition toward (product/proper nouns like "Addigy",
     /// "Claude") so the model spells them right instead of emitting a fresh
     /// phonetic guess each time. Sourced from the corrections map's canonicals.
-    private let contextualStrings: [String]
+    private var contextualStrings: [String]
     private var prepared: PreparedSession?
     private var reservedLocale: Locale?
 
@@ -42,6 +42,15 @@ actor AppleSpeechTranscriber: Transcriber {
 
     /// Build a prepared session so the first dictation is instant. Safe to call
     /// again; a no-op once warm.
+    /// Swap the bias terms and rebuild the warm session so the next dictation
+    /// uses them — lets a Settings edit take effect without relaunching.
+    func updateContextualStrings(_ terms: [String]) async {
+        guard terms != contextualStrings else { return }
+        contextualStrings = terms
+        prepared = nil
+        try? await warmUp()
+    }
+
     func warmUp() async throws {
         if prepared != nil { return }
         FileHandle.standardError.write(Data("preparing Apple Speech…\n".utf8))

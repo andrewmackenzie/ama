@@ -216,7 +216,12 @@ final class DictationEngine: ObservableObject {
     }
     func setWritingStyle(_ style: String) { writingStyle = style }
     func setCleanupSystemPrompt(_ prompt: String) { cleanupSystemPrompt = prompt }
-    func setCleanupCorrections(_ corrections: String) { cleanupCorrections = corrections }
+    func setCleanupCorrections(_ corrections: String) {
+        cleanupCorrections = corrections
+        // Re-bias the recognizer toward the edited term list, live.
+        let terms = TextCleaner.correctionCanonicals(corrections)
+        Task { await transcriber.updateContextualStrings(terms) }
+    }
 
     func setDoubleTapLock(_ enabled: Bool) {
         doubleTapLockEnabled = enabled

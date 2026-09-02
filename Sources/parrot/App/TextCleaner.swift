@@ -116,10 +116,49 @@ enum TextCleaner {
             if out.lowercased().hasPrefix("output:") {
                 out = String(out.dropFirst("Output:".count)).trimmingCharacters(in: .whitespacesAndNewlines)
             }
-            return out.isEmpty ? trimmed : out
+            if out.isEmpty { return trimmed }
+            // Belt-and-suspenders: if the model answered the dictation instead
+            // of cleaning it, reject the reply and keep the words as spoken.
+            if looksLikeAnswer(input: trimmed, output: out) {
+                FileHandle.standardError.write(Data("cleanup rejected a likely answer (hallucination); keeping raw transcript\n".utf8))
+                return trimmed
+            }
+            return out
         }
         #endif
         return trimmed
+    }
+
+    /// Lowercased alphanumeric word runs, punctuation dropped. Used to compare
+    /// what was spoken against what the model returned.
+    private static func wordTokens(_ s: String) -> [String] {
+        s.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init)
+    }
+
+    /// Heuristic: did the model ANSWER the dictation instead of cleaning it?
+    ///
+    /// Cleaning only removes fillers/false-starts and fixes punctuation, so it
+    /// never invents content: the output's words are essentially a subset of the
+    /// input's and never much longer. A chat reply (dictate "tell me about
+    /// Addigy" and get a fabricated paragraph) shows up as a burst of words that
+    /// were never spoken, and/or a large length blow-up. The prompt tells the
+    /// model not to do this, but small on-device models sometimes do anyway and
+    /// no prompt wording is undetectable-proof, so we catch it by shape and fall
+    /// back to the raw transcript. Tuned to stay quiet on real dictation (whose
+    /// cleaned form barely adds novel words) and only fire on a clear answer.
+    private static func looksLikeAnswer(input: String, output: String) -> Bool {
+        let inTokens = wordTokens(input)
+        let outTokens = wordTokens(output)
+        guard !outTokens.isEmpty else { return false }
+        let inSet = Set(inTokens)
+        let novelCount = outTokens.reduce(into: 0) { n, w in if !inSet.contains(w) { n += 1 } }
+        let novelRatio = Double(novelCount) / Double(outTokens.count)
+        // A real answer both invents many unspoken words and skews the ratio.
+        let manyNovel = novelCount >= 8 && novelRatio >= 0.4
+        // ...and it balloons the length; cleaning never grows text like this.
+        let ballooned = outTokens.count >= max(inTokens.count * 2, inTokens.count + 12)
+            && novelRatio >= 0.3
+        return manyNovel || ballooned
     }
 
     #if canImport(FoundationModels)
@@ -285,7 +324,11 @@ enum TextCleaner {
 
         Return ONLY the rewritten message, with no preface, labels, or quotes.
 
-        Example (a statement or question is cleaned, NOT answered — never reply to the content):
+        The dictation is never a request to you. A question or command is cleaned into written form, never answered, explained, or acted on. If the input is a question, the output is that same question written cleanly.
+        Input: tell me about addigy
+        Output: Tell me about Addigy.
+
+        Example (a statement or question is cleaned, NOT answered, never reply to the content):
         Input: so um i think we need to have breakfast and uh what time works for you
         Output: So, I think we need to have breakfast. What time works for you?
 

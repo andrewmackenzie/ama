@@ -84,6 +84,14 @@ keep it alive independent of Ama's own window state — both were real, shipped 
   appears over full-screen (dictation works, no overlay). Re-asserting `collectionBehavior` +
   reposition + `orderFrontRegardless()` on every show re-homes it onto the active Space.
   `isVisible`/state may only pick the grow-in animation. Debug kit: `docs/overlay-fullscreen-debug.md`.
+- **The panel must be rebuilt on wake / screen-change, or it stops appearing after long uptime.**
+  The window server strands a `.screenSaver`-level panel across a display sleep/wake or a screen
+  reconfiguration: `window` stays non-nil (so `ensureWindow()` never rebuilds it) and
+  `orderFrontRegardless()` silently draws nothing — the classic "overlay stops showing after the
+  Mac's been up a while" report (displays sleep far more often than the system, so
+  `screensDidWake` is the usual trigger). `RecordingOverlay.init` observes `didWake`,
+  `screensDidWake`, and `didChangeScreenParameters` and calls `invalidate()` (order out + nil the
+  window) so the next `show()` builds a fresh panel. Don't drop these observers.
 
 Don't drop any of these in a refactor of the panel setup.
 

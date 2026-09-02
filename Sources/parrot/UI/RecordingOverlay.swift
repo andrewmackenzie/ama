@@ -17,6 +17,44 @@ final class RecordingOverlay {
 
     private var window: NSPanel?
     private let model = OverlayModel()
+    private var rebuildObservers: [NSObjectProtocol] = []
+
+    init() {
+        // The window server can strand a `.screenSaver`-level panel across a
+        // display sleep/wake or a screen reconfiguration: the panel stays
+        // non-nil (so `ensureWindow()` never rebuilds it) but
+        // `orderFrontRegardless()` no longer draws it, and the cue silently
+        // stops appearing until relaunch — "the overlay stops showing after the
+        // Mac's been up a while." Displays sleep far more often than the system
+        // does, so `screensDidWake` is the usual trigger. On any of these,
+        // invalidate the panel so the next `show()` builds a fresh one.
+        let rebuild: @Sendable (Notification) -> Void = { [weak self] _ in
+            Task { @MainActor in self?.invalidate() }
+        }
+        let ws = NSWorkspace.shared.notificationCenter
+        rebuildObservers = [
+            ws.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main, using: rebuild),
+            ws.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main, using: rebuild),
+            NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main, using: rebuild),
+        ]
+    }
+
+    deinit {
+        let ws = NSWorkspace.shared.notificationCenter
+        for token in rebuildObservers {
+            ws.removeObserver(token)
+            NotificationCenter.default.removeObserver(token)
+        }
+    }
+
+    /// Drop the panel so the next `show()` rebuilds it via `ensureWindow()`.
+    /// Cheap: rebuilding is deferred to the next dictation, and a stranded panel
+    /// is already invisible, so there's nothing to flash.
+    func invalidate() {
+        window?.orderOut(nil)
+        window = nil
+        model.state = .hidden
+    }
 
     func show(_ state: State) {
         ensureWindow()

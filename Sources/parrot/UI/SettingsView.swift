@@ -119,14 +119,14 @@ struct SettingsView: View {
                         .disabled(!settings.showOverlay)
                     Spacer()
                     Button("Reset to defaults") {
-                        settings.overlayPreset = .symbol
-                        settings.listeningGlyph = .defaultListening
-                        settings.processingGlyph = .defaultProcessing
-                        settings.doneGlyph = .defaultDone
-                        settings.glyphPointSize = Double(GlyphSize.medium)
+                        settings.overlayPreset = .emoji
+                        settings.listeningGlyph = OverlayPreset.emoji.listening
+                        settings.processingGlyph = OverlayPreset.emoji.processing
+                        settings.doneGlyph = OverlayPreset.emoji.done
+                        settings.glyphPointSize = Double(GlyphSize.defaultPoints)
                         settings.symbolColor = .defaultSymbol
                         settings.pillColor = .defaultPill
-                        settings.pillPadding = 28
+                        settings.pillPadding = 72
                         pushGlyphs()
                         pushStyle()
                     }

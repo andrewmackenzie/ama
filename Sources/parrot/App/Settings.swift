@@ -32,17 +32,19 @@ struct RGBAColor: Equatable {
 
     // A mid blue that reads on both light and dark wallpapers by default.
     static let defaultSymbol = RGBAColor(red: 0.36, green: 0.55, blue: 1.0, alpha: 1.0)
-    // The pill behind the glyph: black at 75% opacity, reads on any wallpaper.
-    static let defaultPill = RGBAColor(red: 0, green: 0, blue: 0, alpha: 0.75)
+    // The pill behind the glyph: mid gray at 42% opacity — translucent enough
+    // to sit over any wallpaper without going full smoked-glass black.
+    static let defaultPill = RGBAColor(red: 0.476, green: 0.476, blue: 0.476, alpha: 0.419)
 }
 
 /// Overlay glyph size, applied to both emoji and SF Symbols. Retained for the
-/// default (M) and the slider's bounds; the size itself is now a continuous
-/// point value stored in `Settings.glyphPointSize`.
+/// slider's bounds; the size itself is a continuous point value stored in
+/// `Settings.glyphPointSize`, defaulting to `defaultPoints`.
 enum GlyphSize {
     static let small: CGFloat = 32
     static let medium: CGFloat = 44
     static let large: CGFloat = 58
+    static let defaultPoints: CGFloat = 64
     static let minPoints: CGFloat = 24
     static let maxPoints: CGFloat = 76
 }
@@ -136,14 +138,14 @@ final class Settings: ObservableObject {
             Key.cleanupSystemPrompt: TextCleaner.defaultSystemPrompt,
             Key.cleanupCorrections: TextCleaner.defaultCorrections,
             Key.hasCompletedOnboarding: false,
-            Key.overlayPreset: OverlayPreset.symbol.rawValue,
-            Key.listeningGlyph: Glyph.defaultListening.storage,
-            Key.processingGlyph: Glyph.defaultProcessing.storage,
-            Key.doneGlyph: Glyph.defaultDone.storage,
-            Key.glyphPointSize: Double(GlyphSize.medium),
+            Key.overlayPreset: OverlayPreset.emoji.rawValue,
+            Key.listeningGlyph: OverlayPreset.emoji.listening.storage,
+            Key.processingGlyph: OverlayPreset.emoji.processing.storage,
+            Key.doneGlyph: OverlayPreset.emoji.done.storage,
+            Key.glyphPointSize: Double(GlyphSize.defaultPoints),
             Key.symbolColor: RGBAColor.defaultSymbol.storage,
             Key.pillColor: RGBAColor.defaultPill.storage,
-            Key.pillPadding: Double(28),
+            Key.pillPadding: Double(72),
         ])
     }
 
@@ -208,27 +210,27 @@ final class Settings: ObservableObject {
     }
 
     var listeningGlyph: Glyph {
-        get { Glyph(storage: defaults.string(forKey: Key.listeningGlyph) ?? "") ?? .defaultListening }
+        get { Glyph(storage: defaults.string(forKey: Key.listeningGlyph) ?? "") ?? OverlayPreset.emoji.listening }
         set { objectWillChange.send(); defaults.set(newValue.storage, forKey: Key.listeningGlyph) }
     }
 
     var processingGlyph: Glyph {
-        get { Glyph(storage: defaults.string(forKey: Key.processingGlyph) ?? "") ?? .defaultProcessing }
+        get { Glyph(storage: defaults.string(forKey: Key.processingGlyph) ?? "") ?? OverlayPreset.emoji.processing }
         set { objectWillChange.send(); defaults.set(newValue.storage, forKey: Key.processingGlyph) }
     }
 
     var doneGlyph: Glyph {
-        get { Glyph(storage: defaults.string(forKey: Key.doneGlyph) ?? "") ?? .defaultDone }
+        get { Glyph(storage: defaults.string(forKey: Key.doneGlyph) ?? "") ?? OverlayPreset.emoji.done }
         set { objectWillChange.send(); defaults.set(newValue.storage, forKey: Key.doneGlyph) }
     }
 
     var overlayPreset: OverlayPreset {
-        get { OverlayPreset(rawValue: defaults.string(forKey: Key.overlayPreset) ?? "") ?? .symbol }
+        get { OverlayPreset(rawValue: defaults.string(forKey: Key.overlayPreset) ?? "") ?? .emoji }
         set { objectWillChange.send(); defaults.set(newValue.rawValue, forKey: Key.overlayPreset) }
     }
 
     var glyphPointSize: Double {
-        get { let v = defaults.double(forKey: Key.glyphPointSize); return v > 0 ? v : Double(GlyphSize.medium) }
+        get { let v = defaults.double(forKey: Key.glyphPointSize); return v > 0 ? v : Double(GlyphSize.defaultPoints) }
         set { objectWillChange.send(); defaults.set(newValue, forKey: Key.glyphPointSize) }
     }
 
@@ -243,7 +245,7 @@ final class Settings: ObservableObject {
     }
 
     var pillPadding: Double {
-        get { let v = defaults.double(forKey: Key.pillPadding); return v > 0 ? v : 28 }
+        get { let v = defaults.double(forKey: Key.pillPadding); return v > 0 ? v : 72 }
         set { objectWillChange.send(); defaults.set(newValue, forKey: Key.pillPadding) }
     }
 }

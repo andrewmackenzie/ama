@@ -81,13 +81,13 @@ final class DictationEngine: ObservableObject {
         writingStyle: String = "",
         cleanupSystemPrompt: String = TextCleaner.defaultSystemPrompt,
         cleanupCorrections: String = TextCleaner.defaultCorrections,
-        listeningGlyph: Glyph = .defaultListening,
-        processingGlyph: Glyph = .defaultProcessing,
-        doneGlyph: Glyph = .defaultDone,
-        glyphSize: CGFloat = GlyphSize.medium,
+        listeningGlyph: Glyph = OverlayPreset.emoji.listening,
+        processingGlyph: Glyph = OverlayPreset.emoji.processing,
+        doneGlyph: Glyph = OverlayPreset.emoji.done,
+        glyphSize: CGFloat = GlyphSize.defaultPoints,
         symbolColor: Color = RGBAColor.defaultSymbol.color,
         pillColor: Color = RGBAColor.defaultPill.color,
-        pillPadding: CGFloat = 28,
+        pillPadding: CGFloat = 72,
         dumpWav: Bool = false,
         debugHotkey: Bool = false
     ) {

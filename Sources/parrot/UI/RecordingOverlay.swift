@@ -215,7 +215,7 @@ final class OverlayModel: ObservableObject {
     @Published var size: CGFloat = GlyphSize.medium
     @Published var symbolColor: Color = RGBAColor.defaultSymbol.color
     @Published var pillColor: Color = RGBAColor.defaultPill.color
-    @Published var pillPadding: CGFloat = 28
+    @Published var pillPadding: CGFloat = 72
     /// Smoothed mic level (0…1), for variable-value SF Symbols while recording.
     @Published var level: CGFloat = 0
     private var smooth: Float = 0

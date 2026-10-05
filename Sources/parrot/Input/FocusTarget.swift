@@ -20,13 +20,18 @@ struct FocusTarget {
     let element: AXUIElement?
     /// The window containing that element.
     let window: AXUIElement?
+    /// Center of that window in Cocoa screen coordinates, captured at press
+    /// time, so the overlay can appear on the display being dictated into
+    /// rather than always on the primary screen.
+    let windowCenter: NSPoint?
 
     @MainActor
     static func capture() -> FocusTarget {
         let app = NSWorkspace.shared.frontmostApplication
         let element = systemFocusedElement()
         let window = element.flatMap(containingWindow)
-        return FocusTarget(app: app, element: element, window: window)
+        return FocusTarget(app: app, element: element, window: window,
+                           windowCenter: window.flatMap(centerPoint))
     }
 
     /// True if the captured element still holds keyboard focus right now, so we
@@ -77,6 +82,28 @@ struct FocusTarget {
     private static func containingWindow(_ element: AXUIElement) -> AXUIElement? {
         copyElement(element, kAXWindowAttribute)
             ?? copyElement(element, kAXTopLevelUIElementAttribute)
+    }
+
+    /// The window's center in Cocoa screen coordinates. AX reports frames in
+    /// global top-left-origin coordinates; Cocoa's origin is the bottom-left of
+    /// the primary screen, so flip Y around the primary screen's height.
+    private static func centerPoint(_ window: AXUIElement) -> NSPoint? {
+        var positionValue: CFTypeRef?
+        var sizeValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &positionValue) == .success,
+              AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &sizeValue) == .success,
+              let positionValue, let sizeValue,
+              CFGetTypeID(positionValue) == AXValueGetTypeID(),
+              CFGetTypeID(sizeValue) == AXValueGetTypeID()
+        else { return nil }
+        var topLeft = CGPoint.zero
+        var size = CGSize.zero
+        guard AXValueGetValue((positionValue as! AXValue), .cgPoint, &topLeft),
+              AXValueGetValue((sizeValue as! AXValue), .cgSize, &size),
+              let primary = NSScreen.screens.first
+        else { return nil }
+        return NSPoint(x: topLeft.x + size.width / 2,
+                       y: primary.frame.maxY - (topLeft.y + size.height / 2))
     }
 
     /// Read an attribute that is itself an `AXUIElement`, with a type check so a

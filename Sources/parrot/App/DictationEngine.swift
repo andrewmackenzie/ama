@@ -270,6 +270,9 @@ final class DictationEngine: ObservableObject {
     /// glyph choices without dictating. No-op if the overlay is disabled.
     func previewGlyphs() {
         guard let overlay else { return }
+        // Preview on the display holding the Settings window (it's focused —
+        // the user just clicked the button), not wherever the last dictation was.
+        overlay.setFocusPoint(FocusTarget.capture().windowCenter)
         overlay.show(.recording)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { overlay.show(.transcribing) }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) { overlay.finish() }
@@ -351,6 +354,8 @@ final class DictationEngine: ObservableObject {
         // Lock the exact focus target now, at press time. On release we route the
         // text back to this precise window even if focus wandered while you talked.
         focusTarget = FocusTarget.capture()
+        // Same press-time snapshot picks which display the cue appears on.
+        overlay?.setFocusPoint(focusTarget?.windowCenter)
         do {
             try capture.start()
             status = .recording

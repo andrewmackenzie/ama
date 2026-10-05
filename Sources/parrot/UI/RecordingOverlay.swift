@@ -18,6 +18,9 @@ final class RecordingOverlay {
     private var window: NSPanel?
     private let model = OverlayModel()
     private var rebuildObservers: [NSObjectProtocol] = []
+    /// Where keyboard focus was (Cocoa screen coordinates) when dictation
+    /// started. Picks which display the cue appears on; see `targetScreen`.
+    private var focusPoint: NSPoint?
 
     init() {
         // The window server can strand a `.screenSaver`-level panel across a
@@ -120,6 +123,15 @@ final class RecordingOverlay {
         Task { @MainActor in self.model.updateLevel(level) }
     }
 
+    /// Tell the cue where keyboard focus is, so it appears on that display.
+    /// Set at key-press from the captured `FocusTarget` and kept for the whole
+    /// dictation cycle (recording → transcribing → done), so the cue doesn't
+    /// jump displays if focus wanders mid-dictation. `nil` falls back to the
+    /// screen under the mouse, then the main screen.
+    func setFocusPoint(_ point: NSPoint?) {
+        focusPoint = point
+    }
+
     /// Set the glyph shown for each stage.
     func setGlyphs(listening: Glyph, processing: Glyph, done: Glyph) {
         model.listening = listening
@@ -186,12 +198,31 @@ final class RecordingOverlay {
     }
 
     private func positionAtBottomCenter(_ window: NSPanel) {
-        guard let screen = NSScreen.main else { return }
+        guard let screen = targetScreen else { return }
         let frame = window.frame
         let visible = screen.visibleFrame
         let x = visible.midX - frame.width / 2
         let y = visible.minY + 20
         window.setFrameOrigin(NSPoint(x: x, y: y))
+    }
+
+    /// The display the cue should appear on: the one holding the focused
+    /// window at key-press, else the one under the mouse, else `.main`. For a
+    /// background app `NSScreen.main` is effectively the primary display, so
+    /// without the focus point a multi-display setup always got the cue on the
+    /// primary screen no matter where you were working. Screens are resolved
+    /// from the stored *point* at every show, never cached as `NSScreen`
+    /// objects — AppKit replaces those on display reconfiguration.
+    private var targetScreen: NSScreen? {
+        if let focusPoint,
+           let screen = NSScreen.screens.first(where: { NSPointInRect(focusPoint, $0.frame) }) {
+            return screen
+        }
+        let mouse = NSEvent.mouseLocation
+        if let screen = NSScreen.screens.first(where: { NSPointInRect(mouse, $0.frame) }) {
+            return screen
+        }
+        return NSScreen.main
     }
 }
 

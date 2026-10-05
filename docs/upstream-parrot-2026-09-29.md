@@ -1,5 +1,10 @@
 # Upstream review: digimata/parrot, 2026-09-29
 
+> **Re-checked 2026-10-05:** five new commits since this review — cosmetic polish to their
+> pill overlay (light rim, wave/dots transcribing animation) and a Vercel CI tweak, plus
+> tags v0.2.2/v0.2.3. Nothing to port; Ama's overlay is its own glyph design. The verdict
+> and the port list below stand unchanged, and none of it has been ported yet.
+
 Upstream is active (pushed 2026-09-29), ~120 commits past our fork point `62f8d98`, with
 tags v0.1.0–v0.2.1 and new `develop`/`stats` branches. Fetched here as `upstream`.
 

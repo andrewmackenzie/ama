@@ -76,20 +76,30 @@ actor AppleSpeechTranscriber: Transcriber {
         )
 
         // Collect finalized text, streaming partials to the progress panel.
+        //
+        // Finals are ordered by their AUDIO time range, not arrival order. When
+        // `finalizeAndFinishThroughEndOfInput()` forces finalization, a
+        // still-volatile middle segment can finalize AFTER later segments;
+        // naive `finalized += text` then moves a middle phrase to the end of
+        // the transcript ("one two three four six … ten five"). Real, shipped
+        // bug — reported by Caleb, 2026-10-05.
         let resultTask = Task { () throws -> String in
-            var finalized = ""
+            var finals: [(start: Double, text: String)] = []
+            func finalizedText() -> String {
+                finals.sorted { $0.start < $1.start }.map(\.text).joined()
+            }
             for try await result in session.transcriber.results {
                 let text = String(result.text.characters)
                 if result.isFinal {
-                    finalized += text
+                    finals.append((result.range.start.seconds, text))
                 } else if let onProgress {
                     var info = TranscriptionProgressInfo()
-                    info.text = finalized + text
+                    info.text = finalizedText() + text
                     info.elapsed = Date().timeIntervalSince(start)
                     onProgress(info)
                 }
             }
-            return finalized
+            return finalizedText()
         }
 
         try await session.analyzer.start(inputSequence: stream)
